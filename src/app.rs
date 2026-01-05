@@ -5,7 +5,6 @@ use crate::fl;
 use crate::note::{NO_CONTENT, NO_TITLE, NotesCollection, try_load};
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
-use cosmic::iced::alignment::{Horizontal, Vertical};
 use cosmic::iced::{Alignment, Length, Subscription};
 use cosmic::widget::{self, about::About, icon, menu, nav_bar};
 use cosmic::{iced_futures, prelude::*};
@@ -37,7 +36,7 @@ pub struct AppModel {
     /// Time active
     time: u32,
     /// Toggle the watch subscription
-    watch_is_active: bool,
+    info_is_active: bool,
     /// Content itself
     notes: NotesCollection,
 }
@@ -48,6 +47,7 @@ pub enum Message {
     LaunchUrl(String),
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
+    ToggleInfo,
     WatchTick(u32),
     //
     LoadNotesCompleted(NotesCollection),
@@ -114,7 +114,7 @@ impl cosmic::Application for AppModel {
                 })
                 .unwrap_or_default(),
             time: 0,
-            watch_is_active: false,
+            info_is_active: false,
             notes: NotesCollection::new(),
         };
 
@@ -210,28 +210,51 @@ impl cosmic::Application for AppModel {
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<'_, Self::Message> {
         let space_s = cosmic::theme::spacing().space_s;
-        let content: Element<_> = if let Some(note_id) = self.nav.active_data::<Uuid>()
+        let page: Element<_> = if let Some(note_id) = self.nav.active_data::<Uuid>()
             && let Some(note) = self.notes.get(note_id)
         {
-            // Display selected note title & content
+            // caption
             let header = widget::row::with_capacity(2)
-                .push(widget::text::title1(note.get_title()))
-                .push(widget::text::title3(note_id.to_string()))
-                .align_y(Alignment::End)
+                .align_y(Alignment::Center)
+                .width(Length::Fill)
+                .push(widget::text::title1(note.get_title()).width(Length::Fill))
+                .spacing(space_s)
+                .push(
+                    widget::button::text(if self.info_is_active {
+                        "Hide info"
+                    } else {
+                        "View info"
+                    })
+                    .on_press(Message::ToggleInfo)
+                    .width(Length::Shrink),
+                )
                 .spacing(space_s);
-
+            // text
             let text = widget::row::with_capacity(1)
-                .push(widget::text::text(note.get_content()))
                 .align_y(Alignment::Start)
-                .spacing(space_s);
-
+                .push(widget::text::text(note.get_content()).height(Length::Fill));
+            // info
+            let info = widget::row::with_capacity(2)
+                .align_y(Alignment::Center)
+                .height(Length::Shrink)
+                .push(widget::text::text(note.get_modified().to_rfc2822()))
+                .spacing(space_s)
+                .push(widget::text::text(note_id.to_string()));
+            // combine text + (optional) info into content
+            let content = {
+                let mut content = widget::column::with_capacity(2).push(text);
+                if self.info_is_active {
+                    content = content.spacing(space_s).push(info);
+                }
+                widget::container(content).height(Length::Fill)
+            };
+            // combine title + content into page
             widget::column::with_capacity(2)
+                .height(Length::Fill)
                 .push(header)
                 .spacing(space_s)
-                .height(Length::Shrink)
-                .push(text)
+                .push(content)
                 .spacing(space_s)
-                .height(Length::Fill)
                 .into()
         } else {
             // Display an empty note
@@ -255,13 +278,9 @@ impl cosmic::Application for AppModel {
                 .into()
         };
 
-        widget::container(content)
-            .width(600)
-            .height(Length::Fill)
-            .apply(widget::container)
+        widget::container(page)
             .width(Length::Fill)
-            .align_x(Horizontal::Center)
-            .align_y(Vertical::Center)
+            .height(Length::Fill)
             .into()
     }
 
@@ -287,7 +306,7 @@ impl cosmic::Application for AppModel {
         ];
 
         // Conditionally enables a timer that emits a message every second.
-        if self.watch_is_active {
+        if self.info_is_active {
             subscriptions.push(Subscription::run(|| {
                 iced_futures::stream::channel(1, |mut emitter| async move {
                     let mut time = 1;
@@ -313,6 +332,10 @@ impl cosmic::Application for AppModel {
         match message {
             Message::WatchTick(time) => {
                 self.time = time;
+            }
+
+            Message::ToggleInfo => {
+                self.info_is_active = !self.info_is_active;
             }
 
             Message::ToggleContextPage(context_page) => {

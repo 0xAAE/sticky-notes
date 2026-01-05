@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use std::{collections::HashMap, path::Path};
 use uuid::Uuid;
 
@@ -31,13 +31,17 @@ impl Note {
             EMTPY_TITLE
         } else {
             self.content.lines().next().map_or(NO_TITLE, |line| {
-                &line.get(0..MAX_TITLE_CHARS).unwrap_or(NO_TITLE)
+                line.get(0..MAX_TITLE_CHARS).unwrap_or(NO_TITLE)
             })
         }
     }
 
     pub fn get_content(&self) -> &str {
         self.content.as_str()
+    }
+
+    pub fn get_modified(&self) -> DateTime<Local> {
+        self.modified.into()
     }
 }
 
