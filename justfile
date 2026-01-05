@@ -26,7 +26,7 @@ icons-dst := base-dir / 'share' / 'icons' / 'hicolor'
 icon-svg-dst := icons-dst / 'scalable' / 'apps'
 
 # Default recipe which runs `just build-release`
-default: build-release
+default: rund
 
 # Runs `cargo clean`
 clean:
@@ -94,3 +94,14 @@ tag version:
     git commit --amend
     git tag -a {{version}} -m ''
 
+# my manual additions
+
+# Compiles with release profile
+rel *args: (build-release args)
+
+# Compiles with debug profile
+deb *args: (build-debug args)
+
+# Run the application for testing purposes
+rund *args:
+    env RUST_BACKTRACE=full cargo run {{args}}

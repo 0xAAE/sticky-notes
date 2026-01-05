@@ -2,6 +2,7 @@
 
 use crate::config::Config;
 use crate::fl;
+use crate::note::{NotesCollection, try_load};
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
 use cosmic::iced::alignment::{Horizontal, Vertical};
@@ -14,9 +15,11 @@ use std::time::Duration;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
+const DEF_DATA_FILE: &str = ".config/indicator-stickynotes";
 
 /// The application model stores app-specific state used to describe its interface and
 /// drive its logic.
+#[allow(clippy::zero_sized_map_values)] // key_binds: HashMap<menu::KeyBind, MenuAction>: map with zero-sized value type
 pub struct AppModel {
     /// Application state which is managed by the COSMIC runtime.
     core: cosmic::Core,
@@ -34,6 +37,8 @@ pub struct AppModel {
     time: u32,
     /// Toggle the watch subscription
     watch_is_active: bool,
+    /// Content itself
+    notes: NotesCollection,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -44,6 +49,9 @@ pub enum Message {
     ToggleWatch,
     UpdateConfig(Config),
     WatchTick(u32),
+    //
+    LoadNotesCompleted(NotesCollection),
+    LoadNotesFailed(String),
 }
 
 /// Create a COSMIC application from the app model
@@ -58,7 +66,7 @@ impl cosmic::Application for AppModel {
     type Message = Message;
 
     /// Unique identifier in RDNN (reverse domain name notation) format.
-    const APP_ID: &'static str = "dev.mmurphy.Test";
+    const APP_ID: &'static str = "dev.0xaae.notes-basic";
 
     fn core(&self) -> &cosmic::Core {
         &self.core
@@ -111,23 +119,71 @@ impl cosmic::Application for AppModel {
             config: cosmic_config::Config::new(Self::APP_ID, Config::VERSION)
                 .map(|context| match Config::get_entry(&context) {
                     Ok(config) => config,
-                    Err((_errors, config)) => {
-                        // for why in errors {
-                        //     tracing::error!(%why, "error loading app config");
-                        // }
-
+                    Err((errors, config)) => {
+                        for why in errors {
+                            eprintln!("error loading app config: {why}");
+                            //tracing::error!(%why, "error loading app config");
+                        }
                         config
                     }
                 })
                 .unwrap_or_default(),
             time: 0,
             watch_is_active: false,
+            notes: NotesCollection::new(),
         };
 
-        // Create a startup command that sets the window title.
-        let command = app.update_title();
+        // Create a startup commands
+        let data_file = if app.config.data_file.is_empty() {
+            dirs_next::home_dir()
+                .map(|mut home| {
+                    home.push(DEF_DATA_FILE);
+                    home.display().to_string()
+                })
+                .unwrap_or_default()
+        } else {
+            app.config.data_file.clone()
+        };
+        let commands = cosmic::task::batch(vec![
+            app.update_title(),
+            cosmic::task::future(async move {
+                let data_file_clone = data_file.clone();
+                match tokio::task::spawn_blocking(move || try_load(data_file_clone)).await {
+                    Ok(task) => {
+                        let v = match task.await {
+                            Ok(v) => v,
+                            Err(e) => {
+                                eprintln!(
+                                    "failed reading notes from {}: {e}, {}",
+                                    if data_file.is_empty() {
+                                        "<empty>"
+                                    } else {
+                                        data_file.as_str()
+                                    },
+                                    e.source().map_or_else(
+                                        || "no source error was provided".to_string(),
+                                        ToString::to_string
+                                    )
+                                );
+                                NotesCollection::new()
+                            }
+                        };
+                        Message::LoadNotesCompleted(v)
+                    }
+                    Err(e) => Message::LoadNotesFailed(format!("{e}")),
+                }
+                // tokio::task::spawn_blocking(move || try_load(DEF_DATA_FILE))
+                //     .await
+                //     .map(|task| {
+                //         task.await
+                //             .map(|v| Message::LoadNotesCompleted(v))
+                //             .map_err(|e| Message::LoadNotesFailed(format!("{e}")))
+                //     })
+                //     .map_err(|e| Message::LoadNotesFailed(format!("{e}")))
+            }),
+        ]);
 
-        (app, command)
+        (app, commands)
     }
 
     /// Elements to pack at the start of the header bar.
@@ -311,6 +367,18 @@ impl cosmic::Application for AppModel {
                     eprintln!("failed to open {url:?}: {err}");
                 }
             },
+
+            Message::LoadNotesCompleted(notes) => {
+                if !self.notes.is_empty() {
+                    eprintln!(
+                        "overwriting existing ({}) notes with just loaded ones",
+                        notes.len()
+                    );
+                }
+                self.notes = notes;
+            }
+
+            Message::LoadNotesFailed(msg) => eprint!("failed loading notes: {msg}"),
         }
         Task::none()
     }

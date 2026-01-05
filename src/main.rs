@@ -3,6 +3,8 @@
 mod app;
 mod config;
 mod i18n;
+#[allow(dead_code)]
+mod note;
 
 fn main() -> cosmic::iced::Result {
     // Get the system's preferred languages.
