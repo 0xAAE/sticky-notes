@@ -102,6 +102,6 @@ rel *args: (build-release args)
 # Compiles with debug profile
 deb *args: (build-debug args)
 
-# Run the application for testing purposes
+# Run the application for debugging purposes
 rund *args:
     env RUST_BACKTRACE=full cargo run {{args}}

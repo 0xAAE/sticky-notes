@@ -2,7 +2,7 @@
 
 use crate::config::Config;
 use crate::fl;
-use crate::note::{NO_CONTENT, NO_TITLE, NotesCollection, try_load};
+use crate::notes::{INVISIBLE_TEXT, NotesCollection};
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
 use cosmic::iced::{Alignment, Length, Subscription};
@@ -82,7 +82,7 @@ impl cosmic::Application for AppModel {
         _flags: Self::Flags,
     ) -> (Self, Task<cosmic::Action<Self::Message>>) {
         // Create a nav bar with three page items.
-        let notes = NotesCollection::new();
+        let notes = NotesCollection::default();
         let nav = Self::build_nav(&notes);
 
         // Create the about widget
@@ -115,7 +115,7 @@ impl cosmic::Application for AppModel {
                 .unwrap_or_default(),
             time: 0,
             info_is_active: false,
-            notes: NotesCollection::new(),
+            notes,
         };
 
         // Create a startup commands
@@ -133,38 +133,28 @@ impl cosmic::Application for AppModel {
             app.update_title(),
             cosmic::task::future(async move {
                 let data_file_clone = data_file.clone();
-                match tokio::task::spawn_blocking(move || try_load(data_file_clone)).await {
-                    Ok(task) => {
-                        let v = match task.await {
-                            Ok(v) => v,
-                            Err(e) => {
-                                eprintln!(
-                                    "failed reading notes from {}: {e}, {}",
-                                    if data_file.is_empty() {
-                                        "<empty>"
-                                    } else {
-                                        data_file.as_str()
-                                    },
-                                    e.source().map_or_else(
-                                        || "no source error was provided".to_string(),
-                                        ToString::to_string
-                                    )
-                                );
-                                NotesCollection::new()
-                            }
-                        };
-                        Message::LoadNotesCompleted(v)
-                    }
+                match tokio::task::spawn_blocking(move || {
+                    NotesCollection::try_import(data_file_clone)
+                })
+                .await
+                {
+                    Ok(task) => match task.await {
+                        Ok(v) => Message::LoadNotesCompleted(v),
+                        Err(e) => {
+                            let msg = format!(
+                                "failed reading notes from {}: {e}, {}",
+                                if data_file.is_empty() {
+                                    "<empty>"
+                                } else {
+                                    data_file.as_str()
+                                },
+                                e.source().map_or_else(String::new, ToString::to_string)
+                            );
+                            Message::LoadNotesFailed(msg)
+                        }
+                    },
                     Err(e) => Message::LoadNotesFailed(format!("{e}")),
                 }
-                // tokio::task::spawn_blocking(move || try_load(DEF_DATA_FILE))
-                //     .await
-                //     .map(|task| {
-                //         task.await // compilation error!
-                //             .map(|v| Message::LoadNotesCompleted(v))
-                //             .map_err(|e| Message::LoadNotesFailed(format!("{e}")))
-                //     })
-                //     .map_err(|e| Message::LoadNotesFailed(format!("{e}")))
             }),
         ]);
 
@@ -211,7 +201,7 @@ impl cosmic::Application for AppModel {
     fn view(&self) -> Element<'_, Self::Message> {
         let space_s = cosmic::theme::spacing().space_s;
         let page: Element<_> = if let Some(note_id) = self.nav.active_data::<Uuid>()
-            && let Some(note) = self.notes.get(note_id)
+            && let Some(note) = self.notes.try_get_note(note_id)
         {
             // caption
             let header = widget::row::with_capacity(2)
@@ -257,21 +247,12 @@ impl cosmic::Application for AppModel {
                 .spacing(space_s)
                 .into()
         } else {
-            // Display an empty note
-            let header = widget::row::with_capacity(1)
-                .push(widget::text::title1(NO_TITLE))
-                .align_y(Alignment::End)
-                .spacing(space_s);
-
+            // Display an empty page wich has been never observed
             let text = widget::row::with_capacity(1)
-                .push(widget::text::text(NO_CONTENT))
+                .push(widget::text::text(INVISIBLE_TEXT))
                 .align_y(Alignment::Start)
                 .spacing(space_s);
-
             widget::column::with_capacity(1)
-                .push(header)
-                .spacing(space_s)
-                .height(Length::Shrink)
                 .push(text)
                 .spacing(space_s)
                 .height(Length::Fill)
@@ -361,16 +342,12 @@ impl cosmic::Application for AppModel {
             },
 
             Message::LoadNotesCompleted(notes) => {
-                if !self.notes.is_empty() {
-                    eprintln!(
-                        "overwriting existing ({}) notes with just loaded ones",
-                        notes.len()
-                    );
-                }
                 self.on_notes_updated(notes);
             }
 
-            Message::LoadNotesFailed(msg) => eprint!("failed loading notes: {msg}"),
+            Message::LoadNotesFailed(msg) => {
+                eprintln!("failed loading notes: {msg}");
+            }
         }
         Task::none()
     }
@@ -409,7 +386,7 @@ impl AppModel {
 
     fn build_nav(notes: &NotesCollection) -> nav_bar::Model {
         let mut nav = nav_bar::Model::default();
-        for note in notes {
+        for note in notes.get_all_notes() {
             nav.insert()
                 .text(note.1.get_title().to_string())
                 .data::<Uuid>(*note.0)
