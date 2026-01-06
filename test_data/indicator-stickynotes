@@ -1,0 +1,184 @@
+{
+    "notes": [
+        {
+            "uuid": "8612ca99-15c8-488c-97ef-4eae3ab95a3c",
+            "body": "Deneb",
+            "last_modified": "2026-01-05T11:40:14",
+            "properties": {
+                "position": [
+                    0,
+                    0
+                ],
+                "size": [
+                    226,
+                    73
+                ],
+                "locked": true
+            },
+            "cat": "785b4600-b207-4727-a183-9d58b58a7566"
+        },
+        {
+            "uuid": "c6e73770-2f57-4676-bb41-e571f0fec310",
+            "body": "sudo wg-quick up .config/timeweb1.conf",
+            "last_modified": "2026-01-05T11:40:14",
+            "properties": {
+                "position": [
+                    0,
+                    0
+                ],
+                "size": [
+                    355,
+                    96
+                ],
+                "locked": true
+            },
+            "cat": "d95b7f39-14c4-460e-b4fe-18f3a54a8718"
+        },
+        {
+            "uuid": "454155f0-1a58-4e18-9930-0aea1ee27223",
+            "body": "cosmos145qeyagmxssejkv4s9yfcg57u66ey67weu3vav",
+            "last_modified": "2026-01-05T11:40:14",
+            "properties": {
+                "position": [
+                    0,
+                    0
+                ],
+                "size": [
+                    603,
+                    119
+                ],
+                "locked": true
+            },
+            "cat": "3ea263e7-019e-4d3b-8c99-db5a8f25a2b1"
+        },
+        {
+            "uuid": "02d92fa7-b909-4616-8d7e-77185f675ef0",
+            "body": "\u0420\u0435\u0441\u0442\u043e\u0440\u0430\u043d\u044b \u0432 \u0421\u043f\u0431\n---------------------",
+            "last_modified": "2026-01-05T11:40:14",
+            "properties": {
+                "position": [
+                    0,
+                    0
+                ],
+                "size": [
+                    617,
+                    326
+                ],
+                "locked": true
+            },
+            "cat": "065f143f-a2fe-40b4-9851-b2fe1d7abbae"
+        },
+        {
+            "uuid": "00e64da6-97d7-43b6-8b28-7cd80768c6a9",
+            "body": "\u0423\u0440\u043e\u043a 16+\n\nMAX 45 FW S \u043a\u0443\u043f\u0438\u0442\u044c",
+            "last_modified": "2026-01-05T11:40:14",
+            "properties": {
+                "position": [
+                    0,
+                    0
+                ],
+                "size": [
+                    253,
+                    119
+                ],
+                "locked": true
+            },
+            "cat": "0b895c33-8d4d-40c5-97a3-7a53e251e910"
+        },
+        {
+            "uuid": "acd56a67-767e-43ec-9b19-c1c60bc872d3",
+            "body": "No such key \u201ctitlebar-font\u201d in schema \u201corg.gnome.desktop.interface:COSMIC\u201d as specified in override file \u201c/usr/share/glib-2.0/schemas/10_cosmic-session.gschema.override\u201d; ignoring override for this ke\ny.\nCannot provide per-desktop overrides for localized key \u201cclock-format\u201d in schema \u201corg.gnome.desktop.interface:GNOME-Greeter\u201d (override file \u201c/usr/share/glib-2.0/schemas/50_pop-desktop.gschema.override\u201d\n); ignoring override for this key.\nProcessing triggers for libglib2.0-0t64:amd64 (2.80.0-6ubuntu3.5) ...\nNo such key \u201ctitlebar-font\u201d in schema \u201corg.gnome.desktop.interface:COSMIC\u201d as specified in override file \u201c/usr/share/glib-2.0/schemas/10_cosmic-session.gschema.override\u201d; ignoring override for this ke\ny.\nCannot provide per-desktop overrides for localized key \u201cclock-format\u201d in schema \u201corg.gnome.desktop.interface:GNOME-Greeter\u201d (override file \u201c/usr/share/glib-2.0/schemas/50_pop-desktop.gschema.override\u201d\n); ignoring override for this key.\n",
+            "last_modified": "2026-01-05T11:40:14",
+            "properties": {
+                "position": [
+                    0,
+                    0
+                ],
+                "size": [
+                    1626,
+                    706
+                ],
+                "locked": false
+            },
+            "cat": "065f143f-a2fe-40b4-9851-b2fe1d7abbae"
+        }
+    ],
+    "properties": {
+        "all_visible": true,
+        "default_cat": "065f143f-a2fe-40b4-9851-b2fe1d7abbae"
+    },
+    "categories": {
+        "785b4600-b207-4727-a183-9d58b58a7566": {
+            "name": "Blue",
+            "bgcolor_hsv": [
+                0.5909090909090908,
+                0.3651452282157676,
+                0.9450980392156862
+            ],
+            "font": "Fira Sans 14"
+        },
+        "3ea263e7-019e-4d3b-8c99-db5a8f25a2b1": {
+            "name": "Orange",
+            "bgcolor_hsv": [
+                0.09143518518518519,
+                0.5647058823529412,
+                1.0
+            ],
+            "font": "Fira Sans 14"
+        },
+        "065f143f-a2fe-40b4-9851-b2fe1d7abbae": {
+            "name": "Green",
+            "bgcolor_hsv": [
+                0.3694158075601375,
+                0.4041666666666667,
+                0.9411764705882353
+            ],
+            "font": "Fira Sans 14"
+        },
+        "c5e5fd54-31ad-45f5-97e6-e6d86de04bd9": {
+            "name": "Magenta",
+            "bgcolor_hsv": [
+                0.8313253012048193,
+                0.37556561085972856,
+                0.8666666666666667
+            ],
+            "font": "Fira Sans 14"
+        },
+        "27d9c757-685a-4577-8c98-32e3620c333d": {
+            "name": "Yellow",
+            "bgcolor_hsv": [
+                0.15610328638497653,
+                0.570281124497992,
+                0.9764705882352941
+            ],
+            "font": "Fira Sans 14"
+        },
+        "d95b7f39-14c4-460e-b4fe-18f3a54a8718": {
+            "name": "Sand",
+            "bgcolor_hsv": [
+                0.07526881720430102,
+                0.30243902439024395,
+                0.803921568627451
+            ],
+            "font": "Fira Sans 14"
+        },
+        "ea39e5e9-150f-4e01-93a6-1c12c48f33cf": {
+            "name": "Purple",
+            "bgcolor_hsv": [
+                0.8160377358490566,
+                0.5221674876847291,
+                0.796078431372549
+            ],
+            "font": "Fira Sans 14"
+        },
+        "0b895c33-8d4d-40c5-97a3-7a53e251e910": {
+            "name": "Coral",
+            "bgcolor_hsv": [
+                0.9928315412186379,
+                0.7848101265822786,
+                0.9294117647058824
+            ],
+            "font": "Fira Sans 14"
+        }
+    }
+}

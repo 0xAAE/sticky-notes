@@ -2,21 +2,24 @@
 
 use crate::config::Config;
 use crate::fl;
+use crate::notes::{INVISIBLE_TEXT, NotesCollection};
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
-use cosmic::iced::alignment::{Horizontal, Vertical};
 use cosmic::iced::{Alignment, Length, Subscription};
 use cosmic::widget::{self, about::About, icon, menu, nav_bar};
 use cosmic::{iced_futures, prelude::*};
 use futures_util::SinkExt;
 use std::collections::HashMap;
 use std::time::Duration;
+use uuid::Uuid;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
+const DEF_DATA_FILE: &str = ".config/indicator-stickynotes";
 
 /// The application model stores app-specific state used to describe its interface and
 /// drive its logic.
+#[allow(clippy::zero_sized_map_values)] // key_binds: HashMap<menu::KeyBind, MenuAction>: map with zero-sized value type
 pub struct AppModel {
     /// Application state which is managed by the COSMIC runtime.
     core: cosmic::Core,
@@ -33,7 +36,9 @@ pub struct AppModel {
     /// Time active
     time: u32,
     /// Toggle the watch subscription
-    watch_is_active: bool,
+    info_is_active: bool,
+    /// Content itself
+    notes: NotesCollection,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -41,9 +46,12 @@ pub struct AppModel {
 pub enum Message {
     LaunchUrl(String),
     ToggleContextPage(ContextPage),
-    ToggleWatch,
     UpdateConfig(Config),
+    ToggleInfo,
     WatchTick(u32),
+    //
+    LoadNotesCompleted(NotesCollection),
+    LoadNotesFailed(String),
 }
 
 /// Create a COSMIC application from the app model
@@ -58,7 +66,7 @@ impl cosmic::Application for AppModel {
     type Message = Message;
 
     /// Unique identifier in RDNN (reverse domain name notation) format.
-    const APP_ID: &'static str = "dev.mmurphy.Test";
+    const APP_ID: &'static str = "dev.0xaae.notes-basic";
 
     fn core(&self) -> &cosmic::Core {
         &self.core
@@ -74,23 +82,8 @@ impl cosmic::Application for AppModel {
         _flags: Self::Flags,
     ) -> (Self, Task<cosmic::Action<Self::Message>>) {
         // Create a nav bar with three page items.
-        let mut nav = nav_bar::Model::default();
-
-        nav.insert()
-            .text(fl!("page-id", num = 1))
-            .data::<Page>(Page::Page1)
-            .icon(icon::from_name("applications-science-symbolic"))
-            .activate();
-
-        nav.insert()
-            .text(fl!("page-id", num = 2))
-            .data::<Page>(Page::Page2)
-            .icon(icon::from_name("applications-system-symbolic"));
-
-        nav.insert()
-            .text(fl!("page-id", num = 3))
-            .data::<Page>(Page::Page3)
-            .icon(icon::from_name("applications-games-symbolic"));
+        let notes = NotesCollection::default();
+        let nav = Self::build_nav(&notes);
 
         // Create the about widget
         let about = About::default()
@@ -111,23 +104,61 @@ impl cosmic::Application for AppModel {
             config: cosmic_config::Config::new(Self::APP_ID, Config::VERSION)
                 .map(|context| match Config::get_entry(&context) {
                     Ok(config) => config,
-                    Err((_errors, config)) => {
-                        // for why in errors {
-                        //     tracing::error!(%why, "error loading app config");
-                        // }
-
+                    Err((errors, config)) => {
+                        for why in errors {
+                            eprintln!("error loading app config: {why}");
+                            //tracing::error!(%why, "error loading app config");
+                        }
                         config
                     }
                 })
                 .unwrap_or_default(),
             time: 0,
-            watch_is_active: false,
+            info_is_active: false,
+            notes,
         };
 
-        // Create a startup command that sets the window title.
-        let command = app.update_title();
+        // Create a startup commands
+        let data_file = if app.config.data_file.is_empty() {
+            dirs_next::home_dir()
+                .map(|mut home| {
+                    home.push(DEF_DATA_FILE);
+                    home.display().to_string()
+                })
+                .unwrap_or_default()
+        } else {
+            app.config.data_file.clone()
+        };
+        let commands = cosmic::task::batch(vec![
+            app.update_title(),
+            cosmic::task::future(async move {
+                let data_file_clone = data_file.clone();
+                match tokio::task::spawn_blocking(move || {
+                    NotesCollection::try_import(data_file_clone)
+                })
+                .await
+                {
+                    Ok(task) => match task.await {
+                        Ok(v) => Message::LoadNotesCompleted(v),
+                        Err(e) => {
+                            let msg = format!(
+                                "failed reading notes from {}: {e}, {}",
+                                if data_file.is_empty() {
+                                    "<empty>"
+                                } else {
+                                    data_file.as_str()
+                                },
+                                e.source().map_or_else(String::new, ToString::to_string)
+                            );
+                            Message::LoadNotesFailed(msg)
+                        }
+                    },
+                    Err(e) => Message::LoadNotesFailed(format!("{e}")),
+                }
+            }),
+        ]);
 
-        (app, command)
+        (app, commands)
     }
 
     /// Elements to pack at the start of the header bar.
@@ -167,72 +198,117 @@ impl cosmic::Application for AppModel {
     ///
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
+    #[allow(clippy::too_many_lines)]
     fn view(&self) -> Element<'_, Self::Message> {
         let space_s = cosmic::theme::spacing().space_s;
-        let content: Element<_> = match self.nav.active_data::<Page>().unwrap() {
-            Page::Page1 => {
-                let header = widget::row::with_capacity(2)
-                    .push(widget::text::title1(fl!("welcome")))
-                    .push(widget::text::title3(fl!("page-id", num = 1)))
-                    .align_y(Alignment::End)
-                    .spacing(space_s);
-
-                let counter_label = ["Watch: ", self.time.to_string().as_str()].concat();
-                let section = cosmic::widget::settings::section().add(
-                    cosmic::widget::settings::item::builder(counter_label).control(
-                        widget::button::text(if self.watch_is_active {
-                            "Stop"
-                        } else {
-                            "Start"
-                        })
-                        .on_press(Message::ToggleWatch),
-                    ),
+        let page: Element<_> = if let Some(note_id) = self.nav.active_data::<Uuid>()
+            && let Some(note) = self.notes.try_get_note(note_id)
+            && let Some(style) = self.notes.get_style_or_default(&note.style)
+        {
+            // caption
+            let header = widget::row::with_capacity(2)
+                .align_y(Alignment::Center)
+                .width(Length::Fill)
+                .push(widget::text::title1(note.get_title()).width(Length::Fill))
+                .spacing(space_s)
+                .push(
+                    widget::button::text(if self.info_is_active {
+                        "Hide info"
+                    } else {
+                        "View info"
+                    })
+                    .on_press(Message::ToggleInfo)
+                    .width(Length::Shrink),
+                )
+                .spacing(space_s);
+            // text
+            let text = widget::row::with_capacity(1)
+                .align_y(Alignment::Start)
+                .push(widget::text::text(note.get_content()).height(Length::Fill));
+            // info
+            let info = widget::column::with_capacity(5)
+                .align_x(Alignment::Start)
+                .height(Length::Shrink)
+                .push(
+                    widget::row::with_capacity(2)
+                        .height(Length::Shrink)
+                        .push(widget::text::text("id: "))
+                        .push(widget::text::text(note_id.to_string())),
+                )
+                .push(
+                    widget::row::with_capacity(2)
+                        .height(Length::Shrink)
+                        .push(widget::text::text("modified: "))
+                        .push(widget::text::text(note.get_modified().to_rfc2822())),
+                )
+                .push(
+                    widget::row::with_capacity(6)
+                        .height(Length::Shrink)
+                        .push(widget::text::text("style: "))
+                        .push(widget::text::text(&style.name))
+                        .push(widget::text::text(", font "))
+                        .push(widget::text::text(&style.font_name))
+                        .push(widget::text::text(", background "))
+                        .push(widget::text::text(format!("{:?}", style.bgcolor))),
+                )
+                .push(
+                    widget::row::with_capacity(4)
+                        .height(Length::Shrink)
+                        .push(widget::text::text("geometry: "))
+                        .push(widget::text::text(format!(
+                            "{}, {}",
+                            note.left(),
+                            note.top()
+                        )))
+                        .spacing(space_s)
+                        .push(widget::text::text("x"))
+                        .spacing(space_s)
+                        .push(widget::text::text(format!(
+                            "{}, {}",
+                            note.width(),
+                            note.height()
+                        ))),
+                )
+                .push(
+                    widget::row::with_capacity(4)
+                        .height(Length::Shrink)
+                        .push(widget::text::text("visible: "))
+                        .push(widget::text::text(format!("{}", note.is_visible)))
+                        .push(widget::text::text(" locked: "))
+                        .push(widget::text::text(format!("{}", note.is_locked))),
                 );
-
-                widget::column::with_capacity(2)
-                    .push(header)
-                    .push(section)
-                    .spacing(space_s)
-                    .height(Length::Fill)
-                    .into()
-            }
-
-            Page::Page2 => {
-                let header = widget::row::with_capacity(2)
-                    .push(widget::text::title1(fl!("welcome")))
-                    .push(widget::text::title3(fl!("page-id", num = 2)))
-                    .align_y(Alignment::End)
-                    .spacing(space_s);
-
-                widget::column::with_capacity(1)
-                    .push(header)
-                    .spacing(space_s)
-                    .height(Length::Fill)
-                    .into()
-            }
-
-            Page::Page3 => {
-                let header = widget::row::with_capacity(2)
-                    .push(widget::text::title1(fl!("welcome")))
-                    .push(widget::text::title3(fl!("page-id", num = 3)))
-                    .align_y(Alignment::End)
-                    .spacing(space_s);
-
-                widget::column::with_capacity(1)
-                    .push(header)
-                    .spacing(space_s)
-                    .height(Length::Fill)
-                    .into()
-            }
+            // combine text + (optional) info into content
+            let content = {
+                let mut content = widget::column::with_capacity(2).push(text);
+                if self.info_is_active {
+                    content = content.spacing(space_s).push(info);
+                }
+                widget::container(content).height(Length::Fill)
+            };
+            // combine title + content into page
+            widget::column::with_capacity(2)
+                .height(Length::Fill)
+                .push(header)
+                .spacing(space_s)
+                .push(content)
+                .spacing(space_s)
+                .into()
+        } else {
+            // Display an empty page wich has been never observed
+            let text = widget::row::with_capacity(1)
+                .push(widget::text::text(INVISIBLE_TEXT))
+                .align_y(Alignment::Start)
+                .spacing(space_s);
+            widget::column::with_capacity(1)
+                .push(text)
+                .spacing(space_s)
+                .height(Length::Fill)
+                .into()
         };
 
-        widget::container(content)
-            .width(600)
-            .height(Length::Fill)
-            .apply(widget::container)
+        widget::container(page)
             .width(Length::Fill)
-            .align_x(Horizontal::Center)
-            .align_y(Vertical::Center)
+            .height(Length::Fill)
             .into()
     }
 
@@ -258,7 +334,7 @@ impl cosmic::Application for AppModel {
         ];
 
         // Conditionally enables a timer that emits a message every second.
-        if self.watch_is_active {
+        if self.info_is_active {
             subscriptions.push(Subscription::run(|| {
                 iced_futures::stream::channel(1, |mut emitter| async move {
                     let mut time = 1;
@@ -286,8 +362,8 @@ impl cosmic::Application for AppModel {
                 self.time = time;
             }
 
-            Message::ToggleWatch => {
-                self.watch_is_active = !self.watch_is_active;
+            Message::ToggleInfo => {
+                self.info_is_active = !self.info_is_active;
             }
 
             Message::ToggleContextPage(context_page) => {
@@ -311,6 +387,14 @@ impl cosmic::Application for AppModel {
                     eprintln!("failed to open {url:?}: {err}");
                 }
             },
+
+            Message::LoadNotesCompleted(notes) => {
+                self.on_notes_updated(notes);
+            }
+
+            Message::LoadNotesFailed(msg) => {
+                eprintln!("failed loading notes: {msg}");
+            }
         }
         Task::none()
     }
@@ -340,13 +424,24 @@ impl AppModel {
             Task::none()
         }
     }
-}
 
-/// The page to display in the application.
-pub enum Page {
-    Page1,
-    Page2,
-    Page3,
+    fn on_notes_updated(&mut self, notes: NotesCollection) {
+        self.notes = notes;
+        // Create a nav bar with three page items.
+        self.nav = Self::build_nav(&self.notes);
+    }
+
+    fn build_nav(notes: &NotesCollection) -> nav_bar::Model {
+        let mut nav = nav_bar::Model::default();
+        for note in notes.get_all_notes() {
+            nav.insert()
+                .text(note.1.get_title().to_string())
+                .data::<Uuid>(*note.0)
+                .icon(icon::from_name("applications-science-symbolic"));
+        }
+        nav.activate_position(0);
+        nav
+    }
 }
 
 /// The context page to display in the context drawer.
