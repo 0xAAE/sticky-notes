@@ -40,7 +40,12 @@ pub struct AppModel {
     /// Content itself
     notes: NotesCollection,
     /// currentluy edited content
-    editing: Option<widget::text_editor::Content>,
+    editing: Option<EditContext>,
+}
+
+struct EditContext {
+    content: widget::text_editor::Content,
+    note_id: Uuid,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -344,8 +349,8 @@ impl cosmic::Application for AppModel {
             }
 
             Message::Edit(action) => {
-                if let Some(content) = &mut self.editing {
-                    content.perform(action);
+                if let Some(context) = &mut self.editing {
+                    context.content.perform(action);
                 }
             }
         }
@@ -380,17 +385,28 @@ impl AppModel {
 
     fn on_start_edit(&mut self, note_id: Uuid) {
         if let Some(note) = self.notes.try_get_note(&note_id) {
-            self.editing = Some(widget::text_editor::Content::with_text(note.get_content()));
+            self.editing = Some(EditContext {
+                content: widget::text_editor::Content::with_text(note.get_content()),
+                note_id,
+            });
         } else {
-            eprintln!("cancel editing: note {note_id} is not found");
+            eprintln!("failed start editing: note {note_id} is not found");
         }
     }
 
     fn on_finish_edit(&mut self) {
-        if let Some(text) = &self.editing {
-            eprintln!("text {} is unsaved", text.text());
+        if let Some(context) = &self.editing {
+            if let Some(note) = self.notes.try_get_note_mut(&context.note_id) {
+                note.set_content(context.content.text());
+            } else {
+                eprintln!(
+                    "failed to update note {} with text {}",
+                    context.note_id,
+                    context.content.text()
+                );
+            }
+            self.editing = None;
         }
-        self.editing = None;
     }
 
     fn on_notes_updated(&mut self, notes: NotesCollection) {
@@ -432,11 +448,11 @@ impl AppModel {
 
     fn build_content<'a>(&'a self, note_id: &Uuid, note: &'a NoteData) -> Element<'a, Message> {
         // read-only note
-        if let Some(text) = &self.editing {
+        if let Some(context) = &self.editing {
             widget::column::with_capacity(2)
                 .align_x(Alignment::Start)
                 .push(
-                    widget::text_editor(text)
+                    widget::text_editor(&context.content)
                         .on_action(Message::Edit)
                         .height(Length::Fill),
                 )

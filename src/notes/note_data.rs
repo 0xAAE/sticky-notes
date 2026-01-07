@@ -11,7 +11,7 @@ pub struct NoteData {
     size: (usize, usize),
     pub is_locked: bool,
     pub is_visible: bool,
-    is_dirty: bool
+    is_dirty: bool,
 }
 
 impl NoteData {
