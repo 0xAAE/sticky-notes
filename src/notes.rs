@@ -1,6 +1,6 @@
 pub use collection::NotesCollection;
-use note_data::NoteData;
-use note_style::NoteStyle;
+pub use note_data::NoteData;
+pub use note_style::NoteStyle;
 
 mod collection;
 mod import;
