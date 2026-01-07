@@ -11,6 +11,7 @@ pub struct NoteData {
     size: (usize, usize),
     pub is_locked: bool,
     pub is_visible: bool,
+    is_dirty: bool
 }
 
 impl NoteData {
@@ -23,6 +24,7 @@ impl NoteData {
             style,
             is_locked: false,
             is_visible: true,
+            is_dirty: false,
         }
     }
 
@@ -45,6 +47,7 @@ impl NoteData {
             size,
             is_locked: src.properties.locked,
             is_visible,
+            is_dirty: false,
         }
     }
 
@@ -65,6 +68,12 @@ impl NoteData {
         self.content.as_str()
     }
 
+    pub fn set_content(&mut self, content: String) {
+        self.content = content;
+        self.modified = Utc::now();
+        self.is_dirty = true;
+    }
+
     pub fn get_modified(&self) -> DateTime<Local> {
         self.modified.into()
     }
@@ -83,5 +92,9 @@ impl NoteData {
 
     pub fn height(&self) -> usize {
         self.size.1
+    }
+
+    pub fn is_changed(&self) -> bool {
+        self.is_dirty
     }
 }

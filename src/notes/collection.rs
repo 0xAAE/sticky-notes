@@ -78,6 +78,10 @@ impl NotesCollection {
         self.notes.get(id)
     }
 
+    pub fn try_get_note_mut(&mut self, id: &Uuid) -> Option<&mut NoteData> {
+        self.notes.get_mut(id)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.notes.is_empty()
     }
@@ -133,5 +137,18 @@ impl Default for NotesCollection {
             styles,
             default_style,
         }
+    }
+}
+
+impl Drop for NotesCollection {
+    fn drop(&mut self) {
+        self.notes.iter().for_each(|(note_id, note)| {
+            if note.is_changed() {
+                eprintln!(
+                    "drop note {note_id} unsaved content: {}",
+                    note.get_content()
+                )
+            }
+        });
     }
 }
