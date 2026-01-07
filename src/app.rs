@@ -2,7 +2,7 @@
 
 use crate::config::Config;
 use crate::fl;
-use crate::notes::{INVISIBLE_TEXT, NotesCollection};
+use crate::notes::{INVISIBLE_TEXT, NoteData, NoteStyle, NotesCollection};
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
 use cosmic::iced::{Alignment, Length, Subscription};
@@ -198,103 +198,34 @@ impl cosmic::Application for AppModel {
     ///
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
-    #[allow(clippy::too_many_lines)]
     fn view(&self) -> Element<'_, Self::Message> {
         let space_s = cosmic::theme::spacing().space_s;
         let page: Element<_> = if let Some(note_id) = self.nav.active_data::<Uuid>()
             && let Some(note) = self.notes.try_get_note(note_id)
             && let Some(style) = self.notes.get_style_or_default(&note.style)
         {
-            // caption
-            let header = widget::row::with_capacity(2)
-                .align_y(Alignment::Center)
-                .width(Length::Fill)
-                .push(widget::text::title1(note.get_title()).width(Length::Fill))
-                .spacing(space_s)
-                .push(
-                    widget::button::text(if self.info_is_active {
-                        "Hide info"
-                    } else {
-                        "View info"
-                    })
-                    .on_press(Message::ToggleInfo)
-                    .width(Length::Shrink),
-                )
-                .spacing(space_s);
-            // text
-            let text = widget::row::with_capacity(1)
-                .align_y(Alignment::Start)
-                .push(widget::text::text(note.get_content()).height(Length::Fill));
-            // info
-            let info = widget::column::with_capacity(5)
-                .align_x(Alignment::Start)
-                .height(Length::Shrink)
-                .push(
-                    widget::row::with_capacity(2)
-                        .height(Length::Shrink)
-                        .push(widget::text::text("id: "))
-                        .push(widget::text::text(note_id.to_string())),
-                )
-                .push(
-                    widget::row::with_capacity(2)
-                        .height(Length::Shrink)
-                        .push(widget::text::text("modified: "))
-                        .push(widget::text::text(note.get_modified().to_rfc2822())),
-                )
-                .push(
-                    widget::row::with_capacity(6)
-                        .height(Length::Shrink)
-                        .push(widget::text::text("style: "))
-                        .push(widget::text::text(&style.name))
-                        .push(widget::text::text(", font "))
-                        .push(widget::text::text(&style.font_name))
-                        .push(widget::text::text(", background "))
-                        .push(widget::text::text(format!("{:?}", style.bgcolor))),
-                )
-                .push(
-                    widget::row::with_capacity(4)
-                        .height(Length::Shrink)
-                        .push(widget::text::text("geometry: "))
-                        .push(widget::text::text(format!(
-                            "{}, {}",
-                            note.left(),
-                            note.top()
-                        )))
-                        .spacing(space_s)
-                        .push(widget::text::text("x"))
-                        .spacing(space_s)
-                        .push(widget::text::text(format!(
-                            "{}, {}",
-                            note.width(),
-                            note.height()
-                        ))),
-                )
-                .push(
-                    widget::row::with_capacity(4)
-                        .height(Length::Shrink)
-                        .push(widget::text::text("visible: "))
-                        .push(widget::text::text(format!("{}", note.is_visible)))
-                        .push(widget::text::text(" locked: "))
-                        .push(widget::text::text(format!("{}", note.is_locked))),
-                );
             // combine text + (optional) info into content
             let content = {
-                let mut content = widget::column::with_capacity(2).push(text);
+                let mut content = widget::column::with_capacity(2).push(Self::build_content(note));
                 if self.info_is_active {
-                    content = content.spacing(space_s).push(info);
+                    content = content
+                        .spacing(space_s)
+                        .push(widget::divider::horizontal::light())
+                        .push(Self::build_info(note_id, note, style));
                 }
                 widget::container(content).height(Length::Fill)
             };
             // combine title + content into page
             widget::column::with_capacity(2)
                 .height(Length::Fill)
-                .push(header)
+                .push(self.build_header(note))
                 .spacing(space_s)
                 .push(content)
                 .spacing(space_s)
                 .into()
         } else {
-            // Display an empty page wich has been never observed
+            // unreachable!();
+            // Construct a dummy page wich has been never observed
             let text = widget::row::with_capacity(1)
                 .push(widget::text::text(INVISIBLE_TEXT))
                 .align_y(Alignment::Start)
@@ -441,6 +372,93 @@ impl AppModel {
         }
         nav.activate_position(0);
         nav
+    }
+
+    fn build_header<'a>(&self, note: &'a NoteData) -> Element<'a, Message> {
+        let space_s = cosmic::theme::spacing().space_s;
+        widget::row::with_capacity(2)
+            .align_y(Alignment::Center)
+            .width(Length::Fill)
+            .push(widget::text::title1(note.get_title()).width(Length::Fill))
+            .spacing(space_s)
+            .push(
+                widget::button::text(if self.info_is_active {
+                    "Hide info"
+                } else {
+                    "View info"
+                })
+                .on_press(Message::ToggleInfo)
+                .width(Length::Shrink),
+            )
+            .spacing(space_s)
+            .into()
+    }
+
+    fn build_content(note: &NoteData) -> Element<'_, Message> {
+        widget::row::with_capacity(1)
+            .align_y(Alignment::Start)
+            .push(widget::text::text(note.get_content()).height(Length::Fill))
+            .into()
+    }
+
+    fn build_info<'a>(
+        note_id: &'a Uuid,
+        note: &'a NoteData,
+        style: &'a NoteStyle,
+    ) -> Element<'a, Message> {
+        let space_s = cosmic::theme::spacing().space_s;
+        widget::column::with_capacity(5)
+            .align_x(Alignment::Start)
+            .height(Length::Shrink)
+            .push(
+                widget::row::with_capacity(2)
+                    .height(Length::Shrink)
+                    .push(widget::text::text("id: "))
+                    .push(widget::text::text(note_id.to_string())),
+            )
+            .push(
+                widget::row::with_capacity(2)
+                    .height(Length::Shrink)
+                    .push(widget::text::text("modified: "))
+                    .push(widget::text::text(note.get_modified().to_rfc2822())),
+            )
+            .push(
+                widget::row::with_capacity(6)
+                    .height(Length::Shrink)
+                    .push(widget::text::text("style: "))
+                    .push(widget::text::text(&style.name))
+                    .push(widget::text::text(", font "))
+                    .push(widget::text::text(&style.font_name))
+                    .push(widget::text::text(", background "))
+                    .push(widget::text::text(format!("{:?}", style.bgcolor))),
+            )
+            .push(
+                widget::row::with_capacity(4)
+                    .height(Length::Shrink)
+                    .push(widget::text::text("geometry: "))
+                    .push(widget::text::text(format!(
+                        "{}, {}",
+                        note.left(),
+                        note.top()
+                    )))
+                    .spacing(space_s)
+                    .push(widget::text::text("x"))
+                    .spacing(space_s)
+                    .push(widget::text::text(format!(
+                        "{}, {}",
+                        note.width(),
+                        note.height()
+                    ))),
+            )
+            .push(
+                widget::row::with_capacity(4)
+                    .height(Length::Shrink)
+                    .push(widget::text::text("visible: "))
+                    .push(widget::text::text(format!("{}", note.is_visible)))
+                    .push(widget::text::text(" locked: "))
+                    .push(widget::text::text(format!("{}", note.is_locked))),
+            )
+            .into()
     }
 }
 
