@@ -218,11 +218,11 @@ impl cosmic::Application for AppModel {
         {
             // combine text + (optional) info into content
             let content = {
-                let mut content =
-                    widget::column::with_capacity(2).push(self.build_content(note_id, note));
+                let mut content = widget::column::with_capacity(2)
+                    .spacing(space_s)
+                    .push(self.build_content(note_id, note));
                 if self.info_is_active {
                     content = content
-                        .spacing(space_s)
                         .push(widget::divider::horizontal::light())
                         .push(Self::build_info(note_id, note, style));
                 }
@@ -231,10 +231,9 @@ impl cosmic::Application for AppModel {
             // combine title + content into page
             widget::column::with_capacity(2)
                 .height(Length::Fill)
+                .spacing(space_s)
                 .push(self.build_header(note))
-                .spacing(space_s)
                 .push(content)
-                .spacing(space_s)
                 .into()
         } else {
             // unreachable!();
@@ -244,9 +243,9 @@ impl cosmic::Application for AppModel {
                 .align_y(Alignment::Start)
                 .spacing(space_s);
             widget::column::with_capacity(1)
-                .push(text)
                 .spacing(space_s)
                 .height(Length::Fill)
+                .push(text)
                 .into()
         };
 
