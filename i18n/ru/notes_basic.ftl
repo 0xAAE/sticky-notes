@@ -1,7 +1,12 @@
 app-title = Заметки (база)
+welcome = Привет, COSMIC! ✨
+page-id = Вкладка { $num }
+data = Данные
+load = Загрузить
+save = Сохранить
+import = Импорт
+export = Экспорт
 about = Информация
 repository = Репозиторий
 view = Вид
-welcome = Привет, COSMIC! ✨
-page-id = Вкладка { $num }
 git-description = Git commit {$hash} от {$date}

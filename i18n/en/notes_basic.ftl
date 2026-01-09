@@ -1,7 +1,12 @@
 app-title = Notes Basic
-about = About
-repository = Repository
-view = View
 welcome = Welcome to COSMIC! ✨
 page-id = Page { $num }
+data = Data
+load = Load
+save = Save
+import = Import
+export = Export
+view = View
+about = About
+repository = Repository
 git-description = Git commit {$hash} on {$date}

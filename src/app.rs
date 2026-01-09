@@ -4,13 +4,12 @@ use crate::config::Config;
 use crate::fl;
 use crate::notes::{INVISIBLE_TEXT, NoteData, NoteStyle, NotesCollection};
 use cosmic::app::context_drawer;
-use cosmic::cosmic_config::{self, CosmicConfigEntry};
+use cosmic::cosmic_config::{self, ConfigSet, CosmicConfigEntry};
 use cosmic::iced::{Alignment, Length, Subscription};
+use cosmic::prelude::*;
 use cosmic::widget::{self, about::About, icon, menu, nav_bar};
-use cosmic::{iced_futures, prelude::*};
-use futures_util::SinkExt;
 use std::collections::HashMap;
-use std::time::Duration;
+use std::ops::Not;
 use uuid::Uuid;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
@@ -33,8 +32,6 @@ pub struct AppModel {
     key_binds: HashMap<menu::KeyBind, MenuAction>,
     /// Configuration data that persists between application runs.
     config: Config,
-    /// Time active
-    time: u32,
     /// Toggle the watch subscription
     info_is_active: bool,
     /// Content itself
@@ -55,10 +52,17 @@ pub enum Message {
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
     ToggleInfo,
-    WatchTick(u32),
-    // Loading notes collection
+    // After menu actions
+    LoadNotes,
+    SaveNotes,
+    ImportNotes,
+    ExportNotes,
+    // notes collection load result shared for Load and Import
     LoadNotesCompleted(NotesCollection),
-    LoadNotesFailed(String),
+    LoadNotesFailed(String), // error message
+    // export notes result
+    ExportNotesCompleted,
+    ExportNotesFailed(String), // error message
     // Edit currently selected (displayed) note, contains id of the note
     StartEditNote(Uuid),
     StopEditNote,
@@ -92,10 +96,6 @@ impl cosmic::Application for AppModel {
         core: cosmic::Core,
         _flags: Self::Flags,
     ) -> (Self, Task<cosmic::Action<Self::Message>>) {
-        // Create a nav bar with three page items.
-        let notes = NotesCollection::default();
-        let nav = Self::build_nav(&notes);
-
         // Create the about widget
         let about = About::default()
             .name(fl!("app-title"))
@@ -103,6 +103,26 @@ impl cosmic::Application for AppModel {
             .version(env!("CARGO_PKG_VERSION"))
             .links([(fl!("repository"), REPOSITORY)])
             .license(env!("CARGO_PKG_LICENSE"));
+
+        // Load config
+        let config = cosmic_config::Config::new(Self::APP_ID, Config::VERSION)
+            .map(|context| match Config::get_entry(&context) {
+                Ok(config) => config,
+                Err((errors, config)) => {
+                    for why in errors {
+                        eprintln!("error loading app config: {why}");
+                        //tracing::error!(%why, "error loading app config");
+                    }
+                    config
+                }
+            })
+            .unwrap_or_default();
+
+        // Load notes from config if config/notes is not empty
+        let notes = Self::load_notes_or_default(&config);
+
+        // Create a nav bar with three page items.
+        let nav = Self::build_nav(&notes);
 
         // Construct the app model with the runtime's core.
         let mut app = AppModel {
@@ -112,76 +132,59 @@ impl cosmic::Application for AppModel {
             nav,
             key_binds: HashMap::new(),
             // Optional configuration file for an application.
-            config: cosmic_config::Config::new(Self::APP_ID, Config::VERSION)
-                .map(|context| match Config::get_entry(&context) {
-                    Ok(config) => config,
-                    Err((errors, config)) => {
-                        for why in errors {
-                            eprintln!("error loading app config: {why}");
-                            //tracing::error!(%why, "error loading app config");
-                        }
-                        config
-                    }
-                })
-                .unwrap_or_default(),
-            time: 0,
+            config,
             info_is_active: false,
             notes,
             editing: None,
         };
 
         // Create a startup commands
-        let data_file = if app.config.data_file.is_empty() {
-            dirs_next::home_dir()
-                .map(|mut home| {
-                    home.push(DEF_DATA_FILE);
-                    home.display().to_string()
-                })
-                .unwrap_or_default()
-        } else {
-            app.config.data_file.clone()
-        };
-        let commands = cosmic::task::batch(vec![
-            app.update_title(),
-            cosmic::task::future(async move {
-                let data_file_clone = data_file.clone();
-                match tokio::task::spawn_blocking(move || {
-                    NotesCollection::try_import(data_file_clone)
-                })
-                .await
-                {
-                    Ok(task) => match task.await {
-                        Ok(v) => Message::LoadNotesCompleted(v),
-                        Err(e) => {
-                            let msg = format!(
-                                "failed reading notes from {}: {e}, {}",
-                                if data_file.is_empty() {
-                                    "<empty>"
-                                } else {
-                                    data_file.as_str()
-                                },
-                                e.source().map_or_else(String::new, ToString::to_string)
-                            );
-                            Message::LoadNotesFailed(msg)
-                        }
-                    },
-                    Err(e) => Message::LoadNotesFailed(format!("{e}")),
-                }
-            }),
-        ]);
+        let mut startup_tasks = vec![app.update_title()];
+        // Import notes: if notes is default and empty and if indicator-stickynotes is set try import from it
+        if app.notes.is_default() {
+            // try read from config or construct default path to indicator-stickynotes data file
+            let import_file = app.config.import_file.clone();
+            startup_tasks.push(cosmic::task::future(Self::import_notes(import_file)));
+        }
+
+        let commands = cosmic::task::batch(startup_tasks);
 
         (app, commands)
     }
 
     /// Elements to pack at the start of the header bar.
     fn header_start(&self) -> Vec<Element<'_, Self::Message>> {
-        let menu_bar = menu::bar(vec![menu::Tree::with_children(
-            menu::root(fl!("view")).apply(Element::from),
-            menu::items(
-                &self.key_binds,
-                vec![menu::Item::Button(fl!("about"), None, MenuAction::About)],
+        let import_available = !self.config.import_file.is_empty();
+        let menu_bar = menu::bar(vec![
+            menu::Tree::with_children(
+                menu::root(fl!("data")).apply(Element::from),
+                menu::items(
+                    &self.key_binds,
+                    vec![
+                        menu::Item::Button(fl!("load"), None, MenuAction::Load),
+                        menu::Item::Button(fl!("save"), None, MenuAction::Save),
+                        menu::Item::Divider,
+                        if import_available {
+                            menu::Item::Button(fl!("import"), None, MenuAction::Import)
+                        } else {
+                            menu::Item::ButtonDisabled(fl!("import"), None, MenuAction::Import)
+                        },
+                        if import_available {
+                            menu::Item::Button(fl!("export"), None, MenuAction::Export)
+                        } else {
+                            menu::Item::ButtonDisabled(fl!("export"), None, MenuAction::Export)
+                        },
+                    ],
+                ),
             ),
-        )]);
+            menu::Tree::with_children(
+                menu::root(fl!("view")).apply(Element::from),
+                menu::items(
+                    &self.key_binds,
+                    vec![menu::Item::Button(fl!("about"), None, MenuAction::About)],
+                ),
+            ),
+        ]);
 
         vec![menu_bar.into()]
     }
@@ -218,11 +221,11 @@ impl cosmic::Application for AppModel {
         {
             // combine text + (optional) info into content
             let content = {
-                let mut content =
-                    widget::column::with_capacity(2).push(self.build_content(note_id, note));
+                let mut content = widget::column::with_capacity(2)
+                    .spacing(space_s)
+                    .push(self.build_content(note_id, note));
                 if self.info_is_active {
                     content = content
-                        .spacing(space_s)
                         .push(widget::divider::horizontal::light())
                         .push(Self::build_info(note_id, note, style));
                 }
@@ -231,10 +234,9 @@ impl cosmic::Application for AppModel {
             // combine title + content into page
             widget::column::with_capacity(2)
                 .height(Length::Fill)
+                .spacing(space_s)
                 .push(self.build_header(note))
-                .spacing(space_s)
                 .push(content)
-                .spacing(space_s)
                 .into()
         } else {
             // unreachable!();
@@ -244,9 +246,9 @@ impl cosmic::Application for AppModel {
                 .align_y(Alignment::Start)
                 .spacing(space_s);
             widget::column::with_capacity(1)
-                .push(text)
                 .spacing(space_s)
                 .height(Length::Fill)
+                .push(text)
                 .into()
         };
 
@@ -264,7 +266,7 @@ impl cosmic::Application for AppModel {
     /// indefinitely.
     fn subscription(&self) -> Subscription<Self::Message> {
         // Add subscriptions which are always active.
-        let mut subscriptions = vec![
+        let subscriptions = vec![
             // Watch for application configuration changes.
             self.core()
                 .watch_config::<Config>(Self::APP_ID)
@@ -276,23 +278,6 @@ impl cosmic::Application for AppModel {
                     Message::UpdateConfig(update.config)
                 }),
         ];
-
-        // Conditionally enables a timer that emits a message every second.
-        if self.info_is_active {
-            subscriptions.push(Subscription::run(|| {
-                iced_futures::stream::channel(1, |mut emitter| async move {
-                    let mut time = 1;
-                    let mut interval = tokio::time::interval(Duration::from_secs(1));
-
-                    loop {
-                        interval.tick().await;
-                        _ = emitter.send(Message::WatchTick(time)).await;
-                        time += 1;
-                    }
-                })
-            }));
-        }
-
         Subscription::batch(subscriptions)
     }
 
@@ -302,10 +287,6 @@ impl cosmic::Application for AppModel {
     /// on the application's async runtime.
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
-            Message::WatchTick(time) => {
-                self.time = time;
-            }
-
             Message::ToggleInfo => {
                 self.info_is_active = !self.info_is_active;
             }
@@ -332,12 +313,54 @@ impl cosmic::Application for AppModel {
                 }
             },
 
+            Message::LoadNotes => {
+                if self.notes.is_changed() {
+                    // todo: ask to overwrite unsaved notes
+                    eprintln!("drop unsaved changes while loading collection");
+                }
+                self.editing = None;
+                self.notes = Self::load_notes_or_default(&self.config);
+            }
+
+            Message::SaveNotes => {
+                if let Err(e) = self.save_notes() {
+                    eprintln!("Failed saving notes: {e}");
+                }
+                self.editing = None;
+            }
+
+            Message::ImportNotes => {
+                if self.notes.is_changed() {
+                    // todo: ask to overwrite unsaved notes
+                    eprintln!("drop unsaved changes while importing collection");
+                }
+                self.editing = None;
+                let import_file = self.config.import_file.clone();
+                // opposite to other cases return real task instead of none()
+                return cosmic::task::future(Self::import_notes(import_file));
+            }
+
+            Message::ExportNotes => {
+                self.editing = None;
+                let export_file = self.config.import_file.clone();
+                let notes = self.notes.clone();
+                return cosmic::task::future(Self::export_notes(export_file, notes));
+            }
+
             Message::LoadNotesCompleted(notes) => {
                 self.on_notes_updated(notes);
             }
 
             Message::LoadNotesFailed(msg) => {
                 eprintln!("failed loading notes: {msg}");
+            }
+
+            Message::ExportNotesCompleted => {
+                // nothing to do for now
+            }
+
+            Message::ExportNotesFailed(msg) => {
+                eprintln!("failed exporting notes: {msg}");
             }
 
             Message::StartEditNote(note_id) => {
@@ -359,10 +382,17 @@ impl cosmic::Application for AppModel {
 
     /// Called when a nav item is selected.
     fn on_nav_select(&mut self, id: nav_bar::Id) -> Task<cosmic::Action<Self::Message>> {
-        // Activate the page in the model.
         self.nav.activate(id);
-
         self.update_title()
+    }
+
+    fn on_app_exit(&mut self) -> Option<Self::Message> {
+        if self.notes.is_changed()
+            && let Err(e) = self.save_notes()
+        {
+            eprint!("Failed saving notes on exit: {e}");
+        }
+        None
     }
 }
 
@@ -380,6 +410,94 @@ impl AppModel {
             self.set_window_title(window_title, id)
         } else {
             Task::none()
+        }
+    }
+
+    fn load_notes_or_default(config: &Config) -> NotesCollection {
+        if config.notes.is_empty() {
+            NotesCollection::default()
+        } else {
+            NotesCollection::try_read(&config.notes)
+                .map_err(|e| {
+                    eprintln!(
+                        "failed loading notes from {}/v{}/notes: {e}",
+                        <Self as cosmic::Application>::APP_ID,
+                        Config::VERSION
+                    );
+                })
+                .unwrap_or_default()
+        }
+    }
+
+    fn save_notes(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let json = self.notes.try_write()?;
+        let global_config =
+            cosmic_config::Config::new(<Self as cosmic::Application>::APP_ID, Config::VERSION)?;
+        let tx = global_config.transaction();
+        tx.set("notes", json)?;
+        tx.commit()?;
+        self.notes.commit_changes();
+        Ok(())
+    }
+
+    fn try_get_import_file(configured_import_file: String) -> Option<String> {
+        configured_import_file
+            .is_empty()
+            .not()
+            .then_some(configured_import_file)
+            .or_else(|| {
+                dirs_next::home_dir().map(|mut home| {
+                    home.push(DEF_DATA_FILE);
+                    home.display().to_string()
+                })
+            })
+    }
+
+    async fn import_notes(configured_import_file: String) -> Message {
+        match Self::try_get_import_file(configured_import_file) {
+            Some(import_file) => {
+                let import_file_owned = import_file.clone();
+                match tokio::task::spawn_blocking(move || {
+                    NotesCollection::try_import(import_file_owned)
+                })
+                .await
+                {
+                    Ok(task) => match task.await {
+                        Ok(v) => Message::LoadNotesCompleted(v),
+                        Err(e) => {
+                            let msg =
+                                format!("failed reading notes from {}: {e}", import_file.as_str());
+                            Message::LoadNotesFailed(msg)
+                        }
+                    },
+                    Err(e) => Message::LoadNotesFailed(format!("{e}")),
+                }
+            }
+            None => Message::LoadNotesFailed("No import file is set".to_string()),
+        }
+    }
+
+    async fn export_notes(configured_export_file: String, notes: NotesCollection) -> Message {
+        match Self::try_get_import_file(configured_export_file) {
+            Some(export_file) => {
+                let export_file_owned = export_file.clone();
+                match tokio::task::spawn_blocking(move || {
+                    NotesCollection::try_export(export_file_owned, notes)
+                })
+                .await
+                {
+                    Ok(task) => match task.await {
+                        Ok(()) => Message::ExportNotesCompleted,
+                        Err(e) => {
+                            let msg =
+                                format!("failed reading notes from {}: {e}", export_file.as_str());
+                            Message::ExportNotesFailed(msg)
+                        }
+                    },
+                    Err(e) => Message::ExportNotesFailed(format!("{e}")),
+                }
+            }
+            None => Message::ExportNotesFailed("No export file is set".to_string()),
         }
     }
 
@@ -546,6 +664,10 @@ pub enum ContextPage {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MenuAction {
     About,
+    Load,
+    Save,
+    Import,
+    Export,
 }
 
 impl menu::action::MenuAction for MenuAction {
@@ -554,6 +676,10 @@ impl menu::action::MenuAction for MenuAction {
     fn message(&self) -> Self::Message {
         match self {
             MenuAction::About => Message::ToggleContextPage(ContextPage::About),
+            MenuAction::Load => Message::LoadNotes,
+            MenuAction::Save => Message::SaveNotes,
+            MenuAction::Import => Message::ImportNotes,
+            MenuAction::Export => Message::ExportNotes,
         }
     }
 }

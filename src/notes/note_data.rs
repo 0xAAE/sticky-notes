@@ -1,8 +1,11 @@
-use super::{DEF_NOTE_HEIGHT, DEF_NOTE_WIDTH, EMTPY_TITLE, MAX_TITLE_CHARS, NO_TITLE, import};
+use super::{
+    DEF_NOTE_HEIGHT, DEF_NOTE_WIDTH, EMTPY_TITLE, MAX_TITLE_CHARS, NO_TITLE,
+    indicator_stickynotes as import,
+};
 use chrono::{DateTime, Local, Utc};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default, PartialEq)]
 pub struct NoteData {
     content: String,
     modified: DateTime<Utc>,
@@ -11,6 +14,7 @@ pub struct NoteData {
     size: (usize, usize),
     pub is_locked: bool,
     pub is_visible: bool,
+    #[serde(skip)]
     is_dirty: bool,
 }
 
@@ -41,7 +45,7 @@ impl NoteData {
         };
         Self {
             content: src.body,
-            modified: src.last_modified,
+            modified: src.last_modified.into(),
             style: src.cat,
             position,
             size,
@@ -96,5 +100,9 @@ impl NoteData {
 
     pub fn is_changed(&self) -> bool {
         self.is_dirty
+    }
+
+    pub fn commit(&mut self) {
+        self.is_dirty = false;
     }
 }

@@ -3,7 +3,7 @@ pub use note_data::NoteData;
 pub use note_style::NoteStyle;
 
 mod collection;
-mod import;
+mod indicator_stickynotes;
 mod note_data;
 mod note_style;
 
@@ -15,4 +15,4 @@ const NO_CONTENT: &str = "click inside to begin edit the content";
 const MAX_TITLE_CHARS: usize = 12;
 const DEF_NOTE_WIDTH: usize = 400;
 const DEF_NOTE_HEIGHT: usize = 300;
-pub const INVISIBLE_TEXT: &str = "No one should expect seeing this text";
+pub const INVISIBLE_TEXT: &str = "Internal error: see error log (stderr) for details";
