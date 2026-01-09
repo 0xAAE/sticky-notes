@@ -92,10 +92,6 @@ impl cosmic::Application for AppModel {
         core: cosmic::Core,
         _flags: Self::Flags,
     ) -> (Self, Task<cosmic::Action<Self::Message>>) {
-        // Create a nav bar with three page items.
-        let notes = NotesCollection::default();
-        let nav = Self::build_nav(&notes);
-
         // Create the about widget
         let about = About::default()
             .name(fl!("app-title"))
@@ -103,6 +99,38 @@ impl cosmic::Application for AppModel {
             .version(env!("CARGO_PKG_VERSION"))
             .links([(fl!("repository"), REPOSITORY)])
             .license(env!("CARGO_PKG_LICENSE"));
+
+        // Load config
+        let config = cosmic_config::Config::new(Self::APP_ID, Config::VERSION)
+            .map(|context| match Config::get_entry(&context) {
+                Ok(config) => config,
+                Err((errors, config)) => {
+                    for why in errors {
+                        eprintln!("error loading app config: {why}");
+                        //tracing::error!(%why, "error loading app config");
+                    }
+                    config
+                }
+            })
+            .unwrap_or_default();
+
+        // Load notes from config if config/notes is not empty
+        let notes = if config.notes.is_empty() {
+            NotesCollection::default()
+        } else {
+            NotesCollection::try_read(&config.notes)
+                .map_err(|e| {
+                    eprintln!(
+                        "failed loading notes from {}/{}/notes: {e}",
+                        Self::APP_ID,
+                        Config::VERSION
+                    );
+                })
+                .unwrap_or_default()
+        };
+
+        // Create a nav bar with three page items.
+        let nav = Self::build_nav(&notes);
 
         // Construct the app model with the runtime's core.
         let mut app = AppModel {
@@ -112,18 +140,7 @@ impl cosmic::Application for AppModel {
             nav,
             key_binds: HashMap::new(),
             // Optional configuration file for an application.
-            config: cosmic_config::Config::new(Self::APP_ID, Config::VERSION)
-                .map(|context| match Config::get_entry(&context) {
-                    Ok(config) => config,
-                    Err((errors, config)) => {
-                        for why in errors {
-                            eprintln!("error loading app config: {why}");
-                            //tracing::error!(%why, "error loading app config");
-                        }
-                        config
-                    }
-                })
-                .unwrap_or_default(),
+            config,
             time: 0,
             info_is_active: false,
             notes,
@@ -131,43 +148,50 @@ impl cosmic::Application for AppModel {
         };
 
         // Create a startup commands
-        let import_file = if app.config.import_file.is_empty() {
-            dirs_next::home_dir()
-                .map(|mut home| {
+        let mut startup_tasks = vec![app.update_title()];
+        // Import notes: if notes is default and empty and if indicator-stickynotes is set try import from it
+        if app.notes.is_default() {
+            // try read from config or construct default path to indicator-stickynotes data file
+            if app.config.import_file.is_empty()
+                && let Some(import_file) = dirs_next::home_dir().map(|mut home| {
                     home.push(DEF_DATA_FILE);
                     home.display().to_string()
                 })
-                .unwrap_or_default()
-        } else {
-            app.config.import_file.clone()
-        };
-        let commands = cosmic::task::batch(vec![
-            app.update_title(),
-            cosmic::task::future(async move {
-                let data_file_clone = import_file.clone();
-                match tokio::task::spawn_blocking(move || {
-                    NotesCollection::try_import(data_file_clone)
-                })
-                .await
-                {
-                    Ok(task) => match task.await {
-                        Ok(v) => Message::LoadNotesCompleted(v),
-                        Err(e) => {
-                            let msg = format!(
-                                "failed reading notes from {}: {e}",
-                                if import_file.is_empty() {
-                                    "<empty>"
-                                } else {
-                                    import_file.as_str()
-                                },
-                            );
-                            Message::LoadNotesFailed(msg)
-                        }
-                    },
-                    Err(e) => Message::LoadNotesFailed(format!("{e}")),
-                }
-            }),
-        ]);
+            {
+                startup_tasks.push(cosmic::task::future(async move {
+                    let data_file_clone = import_file.clone();
+                    match tokio::task::spawn_blocking(move || {
+                        NotesCollection::try_import(data_file_clone)
+                    })
+                    .await
+                    {
+                        Ok(task) => match task.await {
+                            Ok(v) => Message::LoadNotesCompleted(v),
+                            Err(e) => {
+                                let msg = format!(
+                                    "failed reading notes from {}: {e}",
+                                    if import_file.is_empty() {
+                                        "<empty>"
+                                    } else {
+                                        import_file.as_str()
+                                    },
+                                );
+                                Message::LoadNotesFailed(msg)
+                            }
+                        },
+                        Err(e) => Message::LoadNotesFailed(format!("{e}")),
+                    }
+                }));
+            } else {
+                eprintln!(
+                    "Neither {}/{}/notes nor indicator-stickynotes data file provide notes collection, starting with new one",
+                    Self::APP_ID,
+                    Config::VERSION
+                );
+            }
+        }
+
+        let commands = cosmic::task::batch(startup_tasks);
 
         (app, commands)
     }

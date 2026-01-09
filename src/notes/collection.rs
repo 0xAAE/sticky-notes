@@ -182,6 +182,11 @@ impl NotesCollection {
             .or_else(|| self.styles.get(&self.default_style))
     }
 
+    // test if collection looks like instantiated by default()
+    pub fn is_default(&self) -> bool {
+        self.notes.is_empty() && self.styles.len() < 2
+    }
+
     fn ensure_default_style(&mut self) {
         // ensure default_style is correct
         if !self.styles.contains_key(&self.default_style) {
