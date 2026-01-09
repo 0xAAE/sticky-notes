@@ -3,11 +3,10 @@
 use crate::config::Config;
 use crate::fl;
 use crate::notes::{INVISIBLE_TEXT, NoteData, NoteStyle, NotesCollection};
-use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, ConfigSet, CosmicConfigEntry};
 use cosmic::iced::{Alignment, Length, Subscription};
 use cosmic::prelude::*;
-use cosmic::widget::{self, about::About, icon, menu, nav_bar};
+use cosmic::widget::{self, about::About, menu};
 use std::collections::HashMap;
 use std::ops::Not;
 use uuid::Uuid;
@@ -22,18 +21,12 @@ const DEF_DATA_FILE: &str = ".config/indicator-stickynotes";
 pub struct AppModel {
     /// Application state which is managed by the COSMIC runtime.
     core: cosmic::Core,
-    /// Display a context drawer with the designated page if defined.
-    context_page: ContextPage,
     /// The about page for this app.
     about: About,
-    /// Contains items assigned to the nav bar panel.
-    nav: nav_bar::Model,
     /// Key bindings for the application's menu bar.
     key_binds: HashMap<menu::KeyBind, MenuAction>,
     /// Configuration data that persists between application runs.
     config: Config,
-    /// Toggle the watch subscription
-    info_is_active: bool,
     /// Content itself
     notes: NotesCollection,
     /// currentluy edited content
@@ -49,9 +42,7 @@ struct EditContext {
 #[derive(Debug, Clone)]
 pub enum Message {
     LaunchUrl(String),
-    ToggleContextPage(ContextPage),
     UpdateConfig(Config),
-    ToggleInfo,
     // After menu actions
     LoadNotes,
     SaveNotes,
@@ -121,19 +112,13 @@ impl cosmic::Application for AppModel {
         // Load notes from config if config/notes is not empty
         let notes = Self::load_notes_or_default(&config);
 
-        // Create a nav bar with three page items.
-        let nav = Self::build_nav(&notes);
-
         // Construct the app model with the runtime's core.
         let mut app = AppModel {
             core,
-            context_page: ContextPage::default(),
             about,
-            nav,
             key_binds: HashMap::new(),
             // Optional configuration file for an application.
             config,
-            info_is_active: false,
             notes,
             editing: None,
         };
@@ -155,58 +140,29 @@ impl cosmic::Application for AppModel {
     /// Elements to pack at the start of the header bar.
     fn header_start(&self) -> Vec<Element<'_, Self::Message>> {
         let import_available = !self.config.import_file.is_empty();
-        let menu_bar = menu::bar(vec![
-            menu::Tree::with_children(
-                menu::root(fl!("data")).apply(Element::from),
-                menu::items(
-                    &self.key_binds,
-                    vec![
-                        menu::Item::Button(fl!("load"), None, MenuAction::Load),
-                        menu::Item::Button(fl!("save"), None, MenuAction::Save),
-                        menu::Item::Divider,
-                        if import_available {
-                            menu::Item::Button(fl!("import"), None, MenuAction::Import)
-                        } else {
-                            menu::Item::ButtonDisabled(fl!("import"), None, MenuAction::Import)
-                        },
-                        if import_available {
-                            menu::Item::Button(fl!("export"), None, MenuAction::Export)
-                        } else {
-                            menu::Item::ButtonDisabled(fl!("export"), None, MenuAction::Export)
-                        },
-                    ],
-                ),
+        let menu_bar = menu::bar(vec![menu::Tree::with_children(
+            menu::root(fl!("data")).apply(Element::from),
+            menu::items(
+                &self.key_binds,
+                vec![
+                    menu::Item::Button(fl!("load"), None, MenuAction::Load),
+                    menu::Item::Button(fl!("save"), None, MenuAction::Save),
+                    menu::Item::Divider,
+                    if import_available {
+                        menu::Item::Button(fl!("import"), None, MenuAction::Import)
+                    } else {
+                        menu::Item::ButtonDisabled(fl!("import"), None, MenuAction::Import)
+                    },
+                    if import_available {
+                        menu::Item::Button(fl!("export"), None, MenuAction::Export)
+                    } else {
+                        menu::Item::ButtonDisabled(fl!("export"), None, MenuAction::Export)
+                    },
+                ],
             ),
-            menu::Tree::with_children(
-                menu::root(fl!("view")).apply(Element::from),
-                menu::items(
-                    &self.key_binds,
-                    vec![menu::Item::Button(fl!("about"), None, MenuAction::About)],
-                ),
-            ),
-        ]);
+        )]);
 
         vec![menu_bar.into()]
-    }
-
-    /// Enables the COSMIC application to create a nav bar with this model.
-    fn nav_model(&self) -> Option<&nav_bar::Model> {
-        Some(&self.nav)
-    }
-
-    /// Display a context drawer if the context page is requested.
-    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<'_, Self::Message>> {
-        if !self.core.window.show_context {
-            return None;
-        }
-
-        Some(match self.context_page {
-            ContextPage::About => context_drawer::about(
-                &self.about,
-                |url| Message::LaunchUrl(url.to_string()),
-                Message::ToggleContextPage(ContextPage::About),
-            ),
-        })
     }
 
     /// Describes the interface based on the current state of the application model.
@@ -214,45 +170,8 @@ impl cosmic::Application for AppModel {
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<'_, Self::Message> {
-        let space_s = cosmic::theme::spacing().space_s;
-        let page: Element<_> = if let Some(note_id) = self.nav.active_data::<Uuid>()
-            && let Some(note) = self.notes.try_get_note(note_id)
-            && let Some(style) = self.notes.get_style_or_default(&note.style)
-        {
-            // combine text + (optional) info into content
-            let content = {
-                let mut content = widget::column::with_capacity(2)
-                    .spacing(space_s)
-                    .push(self.build_content(note_id, note));
-                if self.info_is_active {
-                    content = content
-                        .push(widget::divider::horizontal::light())
-                        .push(Self::build_info(note_id, note, style));
-                }
-                widget::container(content).height(Length::Fill)
-            };
-            // combine title + content into page
-            widget::column::with_capacity(2)
-                .height(Length::Fill)
-                .spacing(space_s)
-                .push(self.build_header(note))
-                .push(content)
-                .into()
-        } else {
-            // unreachable!();
-            // Construct a dummy page wich has been never observed
-            let text = widget::row::with_capacity(1)
-                .push(widget::text::text(INVISIBLE_TEXT))
-                .align_y(Alignment::Start)
-                .spacing(space_s);
-            widget::column::with_capacity(1)
-                .spacing(space_s)
-                .height(Length::Fill)
-                .push(text)
-                .into()
-        };
-
-        widget::container(page)
+        widget::column::with_capacity(1)
+            .push(widget::text(INVISIBLE_TEXT))
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
@@ -287,21 +206,6 @@ impl cosmic::Application for AppModel {
     /// on the application's async runtime.
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
-            Message::ToggleInfo => {
-                self.info_is_active = !self.info_is_active;
-            }
-
-            Message::ToggleContextPage(context_page) => {
-                if self.context_page == context_page {
-                    // Close the context drawer if the toggled context page is the same.
-                    self.core.window.show_context = !self.core.window.show_context;
-                } else {
-                    // Open the context drawer to display the requested context page.
-                    self.context_page = context_page;
-                    self.core.window.show_context = true;
-                }
-            }
-
             Message::UpdateConfig(config) => {
                 self.config = config;
             }
@@ -380,12 +284,6 @@ impl cosmic::Application for AppModel {
         Task::none()
     }
 
-    /// Called when a nav item is selected.
-    fn on_nav_select(&mut self, id: nav_bar::Id) -> Task<cosmic::Action<Self::Message>> {
-        self.nav.activate(id);
-        self.update_title()
-    }
-
     fn on_app_exit(&mut self) -> Option<Self::Message> {
         if self.notes.is_changed()
             && let Err(e) = self.save_notes()
@@ -401,9 +299,9 @@ impl AppModel {
     pub fn update_title(&mut self) -> Task<cosmic::Action<Message>> {
         let mut window_title = fl!("app-title");
 
-        if let Some(page) = self.nav.text(self.nav.active()) {
+        if let Some(edit) = &self.editing {
             window_title.push_str(" — ");
-            window_title.push_str(page);
+            window_title.push_str(edit.note_id.to_string().as_str());
         }
 
         if let Some(id) = self.core.main_window_id() {
@@ -528,39 +426,19 @@ impl AppModel {
     }
 
     fn on_notes_updated(&mut self, notes: NotesCollection) {
+        self.build_windows(&notes);
         self.notes = notes;
-        // Create a nav bar with three page items.
-        self.nav = Self::build_nav(&self.notes);
     }
 
-    fn build_nav(notes: &NotesCollection) -> nav_bar::Model {
-        let mut nav = nav_bar::Model::default();
-        for note in notes.get_all_notes() {
-            nav.insert()
-                .text(note.1.get_title().to_string())
-                .data::<Uuid>(*note.0)
-                .icon(icon::from_name("applications-science-symbolic"));
-        }
-        nav.activate_position(0);
-        nav
+    fn build_windows(&mut self, _notes: &NotesCollection) {
+        // todo: rebuild note windows
     }
 
     fn build_header<'a>(&self, note: &'a NoteData) -> Element<'a, Message> {
-        let space_s = cosmic::theme::spacing().space_s;
         widget::row::with_capacity(2)
             .align_y(Alignment::Center)
             .width(Length::Fill)
             .push(widget::text::title1(note.get_title()).width(Length::Fill))
-            .spacing(space_s)
-            .push(
-                widget::button::text(if self.info_is_active {
-                    "Hide info"
-                } else {
-                    "View info"
-                })
-                .on_press(Message::ToggleInfo)
-                .width(Length::Shrink),
-            )
             .into()
     }
 
@@ -663,7 +541,6 @@ pub enum ContextPage {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MenuAction {
-    About,
     Load,
     Save,
     Import,
@@ -675,7 +552,6 @@ impl menu::action::MenuAction for MenuAction {
 
     fn message(&self) -> Self::Message {
         match self {
-            MenuAction::About => Message::ToggleContextPage(ContextPage::About),
             MenuAction::Load => Message::LoadNotes,
             MenuAction::Save => Message::SaveNotes,
             MenuAction::Import => Message::ImportNotes,
