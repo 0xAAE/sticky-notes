@@ -1,14 +1,23 @@
 // SPDX-License-Identifier: MPL-2.0
 
+use std::collections::HashMap;
+use std::ops::Not;
+
 use crate::config::Config;
 use crate::fl;
 use crate::notes::{INVISIBLE_TEXT, NoteData, NoteStyle, NotesCollection};
-use cosmic::cosmic_config::{self, ConfigSet, CosmicConfigEntry};
-use cosmic::iced::{Alignment, Length, Subscription};
 use cosmic::prelude::*;
-use cosmic::widget::{self, about::About, menu};
-use std::collections::HashMap;
-use std::ops::Not;
+use cosmic::{
+    cosmic_config::{self, ConfigSet, CosmicConfigEntry},
+    iced::{
+        self, Color, Length, Point, Size, Subscription,
+        widget::column,
+        widget::container as iced_container,
+        window::{self, Id},
+    },
+    style,
+    widget::{self, about::About, menu},
+};
 use uuid::Uuid;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
@@ -31,6 +40,13 @@ pub struct AppModel {
     notes: NotesCollection,
     /// currentluy edited content
     editing: Option<EditContext>,
+    /// windows by ID
+    windows: HashMap<Id, WindowContext>,
+}
+
+struct WindowContext {
+    note_id: Uuid,
+    content: String,
 }
 
 struct EditContext {
@@ -43,6 +59,8 @@ struct EditContext {
 pub enum Message {
     LaunchUrl(String),
     UpdateConfig(Config),
+    // Windows
+    NewWindow(Id, Uuid), // (window_id, note_id)
     // After menu actions
     LoadNotes,
     SaveNotes,
@@ -121,20 +139,20 @@ impl cosmic::Application for AppModel {
             config,
             notes,
             editing: None,
+            windows: HashMap::new(),
         };
 
-        // Create a startup commands
-        let mut startup_tasks = vec![app.update_title()];
-        // Import notes: if notes is default and empty and if indicator-stickynotes is set try import from it
+        // Create a startup commands: spawn note windows and (optionally) import indicator-stickynotes data
+        let mut startup_tasks: Vec<Task<cosmic::Action<Message>>> = app.spawn_windows();
+        // Import notes: if notes is default and empty (so, it was not loaded from config)
+        // and if indicator-stickynotes is set try import from it
         if app.notes.is_default() {
-            // try read from config or construct default path to indicator-stickynotes data file
+            // try read import_file name from config or construct default path to indicator-stickynotes data file
             let import_file = app.config.import_file.clone();
             startup_tasks.push(cosmic::task::future(Self::import_notes(import_file)));
         }
 
-        let commands = cosmic::task::batch(startup_tasks);
-
-        (app, commands)
+        (app, cosmic::task::batch(startup_tasks))
     }
 
     /// Elements to pack at the start of the header bar.
@@ -170,11 +188,56 @@ impl cosmic::Application for AppModel {
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<'_, Self::Message> {
-        widget::column::with_capacity(1)
-            .push(widget::text(INVISIBLE_TEXT))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        if let Some(id) = self.core().main_window_id() {
+            self.view_window(id)
+        } else {
+            Self::build_undesired_view()
+        }
+    }
+
+    /// Constructs views for other windows.
+    fn view_window(&self, id: window::Id) -> Element<'_, Self::Message> {
+        if let Some(window_context) = self.windows.get(&id) {
+            let note_bg = self
+                .notes
+                .try_get_note_style(window_context.note_id)
+                .map(|style| style.bgcolor);
+            let note_content = widget::column::with_capacity(1)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .push(widget::text(&window_context.content));
+
+            let window_content = widget::container(note_content)
+                .class(style::Container::custom(move |theme: &Theme| {
+                    let cosmic = theme.cosmic();
+                    iced_container::Style {
+                        icon_color: Some(Color::from(cosmic.background.on)),
+                        text_color: Some(Color::from(cosmic.background.on)),
+                        background: Some(iced::Background::Color(if let Some(bg) = note_bg {
+                            bg.clone().into()
+                        } else {
+                            cosmic.background.base.into()
+                        })),
+                        border: iced::Border {
+                            radius: cosmic.corner_radii.radius_s.into(),
+                            ..Default::default()
+                        },
+                        shadow: iced::Shadow::default(),
+                    }
+                }))
+                .center_x(Length::Fill)
+                .center_y(Length::Fill);
+
+            let focused = self
+                .core()
+                .focused_window()
+                .map(|i| i == id)
+                .unwrap_or(false);
+
+            column![widget::header_bar().focused(focused), window_content].into()
+        } else {
+            Self::build_undesired_view()
+        }
     }
 
     /// Register subscriptions for this application.
@@ -217,6 +280,7 @@ impl cosmic::Application for AppModel {
                 }
             },
 
+            // messages related to loading and saving notes
             Message::LoadNotes => {
                 if self.notes.is_changed() {
                     // todo: ask to overwrite unsaved notes
@@ -252,7 +316,8 @@ impl cosmic::Application for AppModel {
             }
 
             Message::LoadNotesCompleted(notes) => {
-                self.on_notes_updated(notes);
+                self.notes = notes;
+                return cosmic::task::batch(self.spawn_windows());
             }
 
             Message::LoadNotesFailed(msg) => {
@@ -267,6 +332,12 @@ impl cosmic::Application for AppModel {
                 eprintln!("failed exporting notes: {msg}");
             }
 
+            // message related to windows management
+            Message::NewWindow(window_id, note_id) => {
+                self.on_new_note_window(window_id, note_id);
+            }
+
+            // messages related to edit note mode
             Message::StartEditNote(note_id) => {
                 self.on_start_edit(note_id);
             }
@@ -425,111 +496,141 @@ impl AppModel {
         }
     }
 
-    fn on_notes_updated(&mut self, notes: NotesCollection) {
-        self.build_windows(&notes);
-        self.notes = notes;
+    fn spawn_windows(&mut self) -> Vec<Task<cosmic::Action<Message>>> {
+        let existing_windows = std::mem::take(&mut self.windows);
+        let mut commands: Vec<_> = existing_windows
+            .into_iter()
+            .map(|(id, _)| window::close(id))
+            .collect();
+        commands.extend(self.notes.get_all_notes_mut().map(|(note_id, note)| {
+            let (id, spawn_window) = window::open(window::Settings {
+                position: window::Position::Specific(Point::new(
+                    note.left() as f32,
+                    note.top() as f32,
+                )),
+                size: Size::new(note.width() as f32, note.height() as f32),
+                ..Default::default()
+            });
+            note.assign_window(id);
+            self.windows.insert(
+                id,
+                WindowContext {
+                    note_id: *note_id,
+                    content: note.get_content().to_string(),
+                },
+            );
+            let note_id = *note_id;
+            spawn_window.map(move |id| cosmic::Action::App(Message::NewWindow(id, note_id)))
+        }));
+        commands
     }
 
-    fn build_windows(&mut self, _notes: &NotesCollection) {
-        // todo: rebuild note windows
-    }
+    fn on_new_note_window(&self, _window_id: Id, _note_id: Uuid) {}
 
-    fn build_header<'a>(&self, note: &'a NoteData) -> Element<'a, Message> {
-        widget::row::with_capacity(2)
-            .align_y(Alignment::Center)
+    fn build_undesired_view() -> Element<'static, Message> {
+        widget::column::with_capacity(1)
+            .push(widget::text(INVISIBLE_TEXT))
             .width(Length::Fill)
-            .push(widget::text::title1(note.get_title()).width(Length::Fill))
+            .height(Length::Fill)
             .into()
     }
 
-    fn build_content<'a>(&'a self, note_id: &Uuid, note: &'a NoteData) -> Element<'a, Message> {
-        // read-only note
-        if let Some(context) = &self.editing {
-            widget::column::with_capacity(2)
-                .align_x(Alignment::Start)
-                .push(
-                    widget::text_editor(&context.content)
-                        .on_action(Message::Edit)
-                        .height(Length::Fill),
-                )
-                .push(
-                    widget::button::text("Save")
-                        .on_press(Message::StopEditNote)
-                        .height(Length::Shrink),
-                )
-                .into()
-        } else {
-            widget::column::with_capacity(2)
-                .align_x(Alignment::Start)
-                .push(widget::text::text(note.get_content()).height(Length::Fill))
-                .push(
-                    widget::button::text("Edit")
-                        .on_press(Message::StartEditNote(*note_id))
-                        .height(Length::Shrink),
-                )
-                .into()
-        }
-    }
+    // fn build_header<'a>(&self, note: &'a NoteData) -> Element<'a, Message> {
+    //     widget::row::with_capacity(2)
+    //         .align_y(Alignment::Center)
+    //         .width(Length::Fill)
+    //         .push(widget::text::title1(note.get_title()).width(Length::Fill))
+    //         .into()
+    // }
 
-    fn build_info<'a>(
-        note_id: &'a Uuid,
-        note: &'a NoteData,
-        style: &'a NoteStyle,
-    ) -> Element<'a, Message> {
-        let space_s = cosmic::theme::spacing().space_s;
-        widget::column::with_capacity(5)
-            .align_x(Alignment::Start)
-            .height(Length::Shrink)
-            .push(
-                widget::row::with_capacity(2)
-                    .height(Length::Shrink)
-                    .push(widget::text::text("id: "))
-                    .push(widget::text::text(note_id.to_string())),
-            )
-            .push(
-                widget::row::with_capacity(2)
-                    .height(Length::Shrink)
-                    .push(widget::text::text("modified: "))
-                    .push(widget::text::text(note.get_modified().to_rfc2822())),
-            )
-            .push(
-                widget::row::with_capacity(6)
-                    .height(Length::Shrink)
-                    .push(widget::text::text("style: "))
-                    .push(widget::text::text(&style.name))
-                    .push(widget::text::text(", font "))
-                    .push(widget::text::text(&style.font_name))
-                    .push(widget::text::text(", background "))
-                    .push(widget::text::text(format!("{:?}", style.bgcolor))),
-            )
-            .push(
-                widget::row::with_capacity(4)
-                    .height(Length::Shrink)
-                    .push(widget::text::text("geometry: "))
-                    .push(widget::text::text(format!(
-                        "{}, {}",
-                        note.left(),
-                        note.top()
-                    )))
-                    .spacing(space_s)
-                    .push(widget::text::text("x"))
-                    .spacing(space_s)
-                    .push(widget::text::text(format!(
-                        "{}, {}",
-                        note.width(),
-                        note.height()
-                    ))),
-            )
-            .push(
-                widget::row::with_capacity(4)
-                    .height(Length::Shrink)
-                    .push(widget::text::text("visible: "))
-                    .push(widget::text::text(format!("{}", note.is_visible)))
-                    .push(widget::text::text(" locked: "))
-                    .push(widget::text::text(format!("{}", note.is_locked))),
-            )
-            .into()
-    }
+    // fn build_content<'a>(&'a self, note_id: &Uuid, note: &'a NoteData) -> Element<'a, Message> {
+    //     // read-only note
+    //     if let Some(context) = &self.editing {
+    //         widget::column::with_capacity(2)
+    //             .align_x(Alignment::Start)
+    //             .push(
+    //                 widget::text_editor(&context.content)
+    //                     .on_action(Message::Edit)
+    //                     .height(Length::Fill),
+    //             )
+    //             .push(
+    //                 widget::button::text("Save")
+    //                     .on_press(Message::StopEditNote)
+    //                     .height(Length::Shrink),
+    //             )
+    //             .into()
+    //     } else {
+    //         widget::column::with_capacity(2)
+    //             .align_x(Alignment::Start)
+    //             .push(widget::text::text(note.get_content()).height(Length::Fill))
+    //             .push(
+    //                 widget::button::text("Edit")
+    //                     .on_press(Message::StartEditNote(*note_id))
+    //                     .height(Length::Shrink),
+    //             )
+    //             .into()
+    //     }
+    // }
+
+    // fn build_info<'a>(
+    //     note_id: &'a Uuid,
+    //     note: &'a NoteData,
+    //     style: &'a NoteStyle,
+    // ) -> Element<'a, Message> {
+    //     let space_s = cosmic::theme::spacing().space_s;
+    //     widget::column::with_capacity(5)
+    //         .align_x(Alignment::Start)
+    //         .height(Length::Shrink)
+    //         .push(
+    //             widget::row::with_capacity(2)
+    //                 .height(Length::Shrink)
+    //                 .push(widget::text::text("id: "))
+    //                 .push(widget::text::text(note_id.to_string())),
+    //         )
+    //         .push(
+    //             widget::row::with_capacity(2)
+    //                 .height(Length::Shrink)
+    //                 .push(widget::text::text("modified: "))
+    //                 .push(widget::text::text(note.get_modified().to_rfc2822())),
+    //         )
+    //         .push(
+    //             widget::row::with_capacity(6)
+    //                 .height(Length::Shrink)
+    //                 .push(widget::text::text("style: "))
+    //                 .push(widget::text::text(&style.name))
+    //                 .push(widget::text::text(", font "))
+    //                 .push(widget::text::text(&style.font_name))
+    //                 .push(widget::text::text(", background "))
+    //                 .push(widget::text::text(format!("{:?}", style.bgcolor))),
+    //         )
+    //         .push(
+    //             widget::row::with_capacity(4)
+    //                 .height(Length::Shrink)
+    //                 .push(widget::text::text("geometry: "))
+    //                 .push(widget::text::text(format!(
+    //                     "{}, {}",
+    //                     note.left(),
+    //                     note.top()
+    //                 )))
+    //                 .spacing(space_s)
+    //                 .push(widget::text::text("x"))
+    //                 .spacing(space_s)
+    //                 .push(widget::text::text(format!(
+    //                     "{}, {}",
+    //                     note.width(),
+    //                     note.height()
+    //                 ))),
+    //         )
+    //         .push(
+    //             widget::row::with_capacity(4)
+    //                 .height(Length::Shrink)
+    //                 .push(widget::text::text("visible: "))
+    //                 .push(widget::text::text(format!("{}", note.is_visible)))
+    //                 .push(widget::text::text(" locked: "))
+    //                 .push(widget::text::text(format!("{}", note.is_locked))),
+    //         )
+    //         .into()
+    // }
 }
 
 /// The context page to display in the context drawer.

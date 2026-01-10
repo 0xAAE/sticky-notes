@@ -13,7 +13,10 @@ use cosmic::{
     iced::Color,
 };
 use std::{
-    collections::{HashMap, hash_map::Iter},
+    collections::{
+        HashMap,
+        hash_map::{Iter, IterMut},
+    },
     path::Path,
 };
 use thiserror::Error;
@@ -187,6 +190,10 @@ impl NotesCollection {
         self.notes.iter()
     }
 
+    pub fn get_all_notes_mut(&mut self) -> IterMut<'_, Uuid, NoteData> {
+        self.notes.iter_mut()
+    }
+
     pub fn new_note(&mut self) -> Uuid {
         let id = Uuid::new_v4();
         self.notes.insert(id, NoteData::new(self.default_style));
@@ -197,6 +204,12 @@ impl NotesCollection {
         self.styles
             .get(style_id)
             .or_else(|| self.styles.get(&self.default_style))
+    }
+
+    pub fn try_get_note_style(&self, note_id: Uuid) -> Option<&NoteStyle> {
+        self.try_get_note(&note_id)
+            .map(|note| self.get_style_or_default(&note.style))
+            .flatten()
     }
 
     // test if collection looks like instantiated by default()
