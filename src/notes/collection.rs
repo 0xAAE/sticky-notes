@@ -208,8 +208,7 @@ impl NotesCollection {
 
     pub fn try_get_note_style(&self, note_id: Uuid) -> Option<&NoteStyle> {
         self.try_get_note(&note_id)
-            .map(|note| self.get_style_or_default(&note.style))
-            .flatten()
+            .and_then(|note| self.get_style_or_default(&note.style))
     }
 
     // test if collection looks like instantiated by default()

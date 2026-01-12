@@ -6,14 +6,18 @@ use std::ops::Not;
 use crate::config::Config;
 use crate::fl;
 use crate::notes::{INVISIBLE_TEXT, NoteData, NoteStyle, NotesCollection};
+use cosmic::iced::window::Position;
 use cosmic::prelude::*;
 use cosmic::{
     cosmic_config::{self, ConfigSet, CosmicConfigEntry},
     iced::{
-        self, Color, Length, Point, Size, Subscription,
+        self, Color, Event, Length, Point, Size, Subscription,
+        core::mouse::Button as MouseButton,
+        event::Status as EventStatus,
+        mouse::Event as MouseEvent,
         widget::column,
         widget::container as iced_container,
-        window::{self, Id},
+        window::{self, Event as WindowEvent, Id},
     },
     style,
     widget::{self, about::About, menu},
@@ -77,11 +81,11 @@ pub enum Message {
     StartEditNote(Uuid),
     StopEditNote,
     Edit(widget::text_editor::Action),
-    // event handling
-    //EventUnhandled(iced::event::Event),
-    WindowEvent((Id, iced::window::Event)),
-    MouseEvent((Id, iced::mouse::Event)),
-    WindowMoved((Id, Option<Point>)),
+    // iced "system" events handling
+    AppWindowEvent((Id, WindowEvent)),
+    AppMouseEvent((Id, MouseEvent)),
+    // response on window::get_position() request
+    WindowPositionResponse((Id, Option<Point>)),
 }
 
 /// Create a COSMIC application from the app model
@@ -203,7 +207,7 @@ impl cosmic::Application for AppModel {
     }
 
     /// Constructs views for other windows.
-    fn view_window(&self, id: window::Id) -> Element<'_, Self::Message> {
+    fn view_window(&self, id: Id) -> Element<'_, Self::Message> {
         if let Some(window_context) = self.windows.get(&id) {
             let note_bg = self
                 .notes
@@ -221,7 +225,7 @@ impl cosmic::Application for AppModel {
                         icon_color: Some(Color::from(cosmic.background.on)),
                         text_color: Some(Color::from(cosmic.background.on)),
                         background: Some(iced::Background::Color(if let Some(bg) = note_bg {
-                            bg.clone().into()
+                            bg
                         } else {
                             cosmic.background.base.into()
                         })),
@@ -276,20 +280,23 @@ impl cosmic::Application for AppModel {
 
                     Message::UpdateConfig(update.config)
                 }),
-            iced::event::listen_raw(|evt, _status, id| match evt {
-                iced::Event::Mouse(event)
-                    if matches!(event, iced::mouse::Event::CursorMoved { .. }) =>
-                {
+            // subscribe to some interested events from mouse and window:
+            iced::event::listen_with(|evt, status, id| {
+                if status == EventStatus::Ignored {
+                    match evt {
+                        Event::Mouse(MouseEvent::CursorMoved { .. })
+                        | Event::Window(WindowEvent::RedrawRequested(_)) => None,
+                        Event::Mouse(mouse_event) => {
+                            Some(Message::AppMouseEvent((id, mouse_event)))
+                        }
+                        Event::Window(window_event) => {
+                            Some(Message::AppWindowEvent((id, window_event)))
+                        }
+                        _ => None,
+                    }
+                } else {
                     None
                 }
-                iced::Event::Mouse(mouse_event) => Some(Message::MouseEvent((id, mouse_event))),
-                iced::Event::Window(event)
-                    if matches!(event, iced::window::Event::RedrawRequested(_)) =>
-                {
-                    None
-                }
-                iced::Event::Window(window_event) => Some(Message::WindowEvent((id, window_event))),
-                _ => None,
             }),
         ];
         Subscription::batch(subscriptions)
@@ -384,72 +391,19 @@ impl cosmic::Application for AppModel {
                 }
             }
 
-            Message::MouseEvent((id, mouse_event)) => {
-                match mouse_event {
-                    iced::mouse::Event::ButtonPressed(button)
-                        if button == iced::core::mouse::Button::Left =>
-                    {
-                        println!("{id}: left button pressed");
-                        if let Some(cursor_id) = self.cursor_window
-                            && cursor_id == id
-                        {
-                            println!("{id}: begin dragging window");
-                            return self.core.drag(Some(id));
-                        }
-                    }
-                    iced::mouse::Event::ButtonReleased(button)
-                        if button == iced::core::mouse::Button::Left =>
-                    {
-                        println!("{id}: left button released");
-                        if let Some(cursor_id) = self.cursor_window
-                            && cursor_id == id
-                        {
-                            println!("{id}: finish dragging window");
-                            return self.core.drag(None).chain(window::get_position(id).map(
-                                move |pos| cosmic::Action::App(Message::WindowMoved((id, pos))),
-                            ));
-                        }
-                    }
-                    iced::mouse::Event::CursorEntered => {
-                        println!("{id}: window under cursor");
-                        self.cursor_window.replace(id);
-                    }
-                    _ => {
-                        println!("{id}: {:?}", mouse_event);
-                    }
-                }
+            Message::AppMouseEvent((id, event)) => {
+                return self.on_mouse_event(id, &event);
             }
 
-            Message::WindowEvent((id, window_event)) => match window_event {
-                window::Event::Resized(size) => {
-                    if let Some(note) = self.try_get_note_mut(&id) {
-                        println!("{id}: set size {} x {}", size.width, size.height,);
-                        note.set_size(size.width as usize, size.height as usize);
-                    }
-                }
-                window::Event::Moved(point) => {
-                    if let Some(note) = self.try_get_note_mut(&id) {
-                        println!("{id}: move to ({}, {})", point.x, point.y,);
-                        note.set_position(point.x as usize, point.y as usize);
-                    }
-                }
-                _ => {
-                    println!("{id}: {:?}", window_event);
-                }
-            },
+            Message::AppWindowEvent((id, event)) => {
+                return self.on_window_event(id, &event);
+            }
 
-            Message::WindowMoved((id, location)) => {
-                println!("{id}: window moved to {:?}", &location);
-                if let Some(point) = location {
-                    if let Some(note) = self.try_get_note_mut(&id) {
-                        println!(
-                            "{}: set location to ({}, {})",
-                            note.get_title(),
-                            point.x,
-                            point.y
-                        );
-                        note.set_position(point.x as usize, point.y as usize);
-                    }
+            Message::WindowPositionResponse((id, location)) => {
+                if let Some(point) = location
+                    && let Some(note) = self.try_get_note_mut(id)
+                {
+                    note.set_position(point.x as usize, point.y as usize);
                 }
             }
         }
@@ -467,14 +421,14 @@ impl cosmic::Application for AppModel {
 }
 
 impl AppModel {
-    fn try_get_note_mut(&mut self, window_id: &Id) -> Option<&mut NoteData> {
+    fn try_get_note_mut(&mut self, window_id: Id) -> Option<&mut NoteData> {
         self.windows
-            .get(window_id)
+            .get(&window_id)
             .and_then(|context| self.notes.try_get_note_mut(&context.note_id))
     }
 
     fn try_get_active_note_mut(&mut self) -> Option<&mut NoteData> {
-        self.cursor_window.and_then(|id| self.try_get_note_mut(&id))
+        self.cursor_window.and_then(|id| self.try_get_note_mut(id))
     }
 
     /// Updates the header and window titles.
@@ -607,18 +561,66 @@ impl AppModel {
         }
     }
 
+    fn on_mouse_event(
+        &mut self,
+        id: Id,
+        event: &MouseEvent,
+    ) -> Task<cosmic::Action<<AppModel as cosmic::Application>::Message>> {
+        match event {
+            MouseEvent::ButtonPressed(MouseButton::Left) => {
+                if let Some(cursor_id) = self.cursor_window
+                    && cursor_id == id
+                {
+                    return self.core.drag(Some(id));
+                }
+            }
+            MouseEvent::ButtonReleased(MouseButton::Left) => {
+                if let Some(cursor_id) = self.cursor_window
+                    && cursor_id == id
+                {
+                    return self
+                        .core
+                        .drag(None)
+                        .chain(window::get_position(id).map(move |pos| {
+                            cosmic::Action::App(Message::WindowPositionResponse((id, pos)))
+                        }));
+                }
+            }
+            MouseEvent::CursorEntered => {
+                self.cursor_window.replace(id);
+            }
+            _ => {}
+        }
+        Task::none()
+    }
+
+    fn on_window_event(
+        &mut self,
+        id: Id,
+        event: &WindowEvent,
+    ) -> Task<cosmic::Action<<AppModel as cosmic::Application>::Message>> {
+        match event {
+            WindowEvent::Resized(size) => {
+                if let Some(note) = self.try_get_note_mut(id) {
+                    note.set_size(size.width as usize, size.height as usize);
+                }
+            }
+            WindowEvent::Moved(point) => {
+                if let Some(note) = self.try_get_note_mut(id) {
+                    note.set_position(point.x as usize, point.y as usize);
+                }
+            }
+            _ => {}
+        }
+        Task::none()
+    }
+
     fn spawn_windows(&mut self) -> Vec<Task<cosmic::Action<Message>>> {
         let existing_windows = std::mem::take(&mut self.windows);
-        let mut commands: Vec<_> = existing_windows
-            .into_iter()
-            .map(|(id, _)| window::close(id))
-            .collect();
+        let mut commands: Vec<_> = existing_windows.into_keys().map(window::close).collect();
         commands.extend(self.notes.get_all_notes_mut().map(|(note_id, note)| {
             let (id, spawn_window) = window::open(window::Settings {
-                position: window::Position::Specific(Point::new(
-                    note.left() as f32,
-                    note.top() as f32,
-                )),
+                position: Position::Specific(Point::new(note.left() as f32, note.top() as f32)),
                 size: Size::new(note.width() as f32, note.height() as f32),
                 decorations: false,
                 ..Default::default()

@@ -88,11 +88,11 @@ impl NoteData {
     }
 
     pub fn left(&self) -> usize {
-        self.position.0 + if self.position.0 == 0 { 1 } else { 0 }
+        self.position.0
     }
 
     pub fn top(&self) -> usize {
-        self.position.1 + if self.position.1 == 0 { 1 } else { 0 }
+        self.position.1
     }
 
     pub fn width(&self) -> usize {
@@ -104,13 +104,17 @@ impl NoteData {
     }
 
     pub fn set_position(&mut self, left: usize, top: usize) {
-        self.position = (left, top);
-        self.is_dirty = true;
+        if self.position != (left, top) {
+            self.position = (left, top);
+            self.is_dirty = true;
+        }
     }
 
     pub fn set_size(&mut self, width: usize, height: usize) {
-        self.size = (width, height);
-        self.is_dirty = true;
+        if self.size != (width, height) {
+            self.size = (width, height);
+            self.is_dirty = true;
+        }
     }
 
     pub fn is_changed(&self) -> bool {
