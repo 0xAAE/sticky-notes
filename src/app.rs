@@ -27,13 +27,28 @@ const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
 const DEF_DATA_FILE: &str = ".config/indicator-stickynotes";
 
-const ICON_UNLOCKED: &str = "resources/icons/hicolor/scalable/changes-allow-symbolic.svg";
-const ICON_LOCKED: &str = "resources/icons/hicolor/scalable/changes-prevent-symbolic.svg";
-const ICON_NEW: &str = "resources/icons/hicolor/scalable/document-new-symbolic.svg";
-const ICON_DELETE: &str = "resources/icons/hicolor/scalable/edit-delete-symbolic.svg";
-const ICON_EDIT: &str = "resources/icons/hicolor/scalable/edit-symbolic.svg";
-const ICON_DOWN: &str = "resources/icons/hicolor/scalable/pan-down-symbolic.svg";
-const ICON_PIN: &str = "resources/icons/hicolor/scalable/pin-symbolic.svg";
+// embedded SVG bytes
+const ICON_UNLOCKED: &[u8] =
+    include_bytes!("../resources/icons/hicolor/scalable/changes-allow-symbolic.svg");
+const ICON_LOCKED: &[u8] =
+    include_bytes!("../resources/icons/hicolor/scalable/changes-prevent-symbolic.svg");
+const ICON_NEW: &[u8] =
+    include_bytes!("../resources/icons/hicolor/scalable/document-new-symbolic.svg");
+const ICON_DELETE: &[u8] =
+    include_bytes!("../resources/icons/hicolor/scalable/edit-delete-symbolic.svg");
+const ICON_EDIT: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/edit-symbolic.svg");
+const ICON_DOWN: &[u8] =
+    include_bytes!("../resources/icons/hicolor/scalable/pan-down-symbolic.svg");
+const ICON_PIN: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/pin-symbolic.svg");
+
+// system wide installed icons
+const XDG_UNLOCKED: &str = "changes-allow-symbolic";
+const XDG_LOCKED: &str = "changes-prevent-symbolic";
+const XDG_NEW: &str = "document-new-symbolic";
+const XDG_DELETE: &str = "edit-delete-symbolic";
+const XDG_EDIT: &str = "edit-symbolic";
+const XDG_DOWN: &str = "pan-down-symbolic";
+const XDG_PIN: &str = "pin-symbolic";
 
 /// The application model stores app-specific state used to describe its interface and
 /// drive its logic.
@@ -224,40 +239,55 @@ impl cosmic::Application for AppModel {
                 .try_get_note_style(window_context.note_id)
                 .map(|style| style.bgcolor);
 
-            const BUTTON_WIDTH: u16 = 32;
+            // using embedded SVG icons
+            const ICON_SIZE: u16 = 16;
+            let lock = widget::icon::from_svg_bytes(ICON_UNLOCKED);
+            let _unlock = widget::icon::from_svg_bytes(ICON_LOCKED);
+            let pin = widget::icon::from_svg_bytes(ICON_PIN);
+            let edit = widget::icon::from_svg_bytes(ICON_EDIT);
+            let down = widget::icon::from_svg_bytes(ICON_DOWN);
+            let create = widget::icon::from_svg_bytes(ICON_NEW);
+            let delete = widget::icon::from_svg_bytes(ICON_DELETE);
 
-            let lock = widget::icon::from_path(ICON_UNLOCKED.into());
-            let pin = widget::icon::from_path(ICON_PIN.into());
-            let edit = widget::icon::from_path(ICON_EDIT.into());
-            let down = widget::icon::from_path(ICON_DOWN.into());
-            let create = widget::icon::from_path(ICON_NEW.into());
-            let delete = widget::icon::from_path(ICON_DELETE.into());
+            // or using system XDG icons by names
+            // let lock = widget::icon::from_name(XDG_UNLOCKED);
+            // let _unlock = widget::icon::from_name(XDG_LOCKED);
+            // let pin = widget::icon::from_name(XDG_PIN);
+            // let edit = widget::icon::from_name(XDG_EDIT);
+            // let down = widget::icon::from_name(XDG_DOWN);
+            // let create = widget::icon::from_name(XDG_NEW);
+            // let delete = widget::icon::from_name(XDG_DELETE);
 
             let note_toolbar = widget::row::with_capacity(7)
                 .spacing(cosmic::theme::spacing().space_s)
                 .push(
                     lock.apply(widget::button::icon)
+                        .icon_size(ICON_SIZE)
                         .on_press(Message::NoteLock(id, true))
                         .width(Length::Shrink),
                 )
                 .push(
                     pin.apply(widget::button::icon)
+                        .icon_size(ICON_SIZE)
                         .on_press(Message::NotePin(id, true))
                         .width(Length::Shrink),
                 )
                 .push(
                     edit.apply(widget::button::icon)
+                        .icon_size(ICON_SIZE)
                         .on_press(Message::NoteEdit(id, true))
                         .width(Length::Shrink),
                 )
                 .push(
                     down.apply(widget::button::icon)
+                        .icon_size(ICON_SIZE)
                         .on_press(Message::NoteColor(id))
                         .width(Length::Shrink),
                 )
                 .push(
                     create
                         .apply(widget::button::icon)
+                        .icon_size(ICON_SIZE)
                         .on_press(Message::NoteNew)
                         .width(Length::Shrink),
                 )
@@ -265,6 +295,7 @@ impl cosmic::Application for AppModel {
                 .push(
                     delete
                         .apply(widget::button::icon)
+                        .icon_size(ICON_SIZE)
                         .on_press(Message::NoteDelete(id))
                         .width(Length::Shrink),
                 );
