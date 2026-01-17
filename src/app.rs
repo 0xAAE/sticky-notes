@@ -16,11 +16,8 @@ use cosmic::{
         core::mouse::Button as MouseButton,
         event::Status as EventStatus,
         mouse::Event as MouseEvent,
-        widget::column,
-        widget::container as iced_container,
         window::{self, Event as WindowEvent, Id, Position},
     },
-    style,
     widget::{self, menu},
 };
 use uuid::Uuid;
@@ -223,9 +220,9 @@ impl cosmic::Application for AppModel {
             let window_interior = self.build_sticky_window_interior(id, window_context);
 
             let window_content = widget::container(window_interior)
-                .class(style::Container::custom(move |theme: &Theme| {
+                .class(cosmic::style::Container::custom(move |theme: &Theme| {
                     let cosmic = theme.cosmic();
-                    iced_container::Style {
+                    iced::widget::container::Style {
                         icon_color: Some(Color::from(cosmic.background.on)),
                         text_color: Some(Color::from(cosmic.background.on)),
                         background: Some(iced::Background::Color(if let Some(bg) = note_bg {
@@ -244,7 +241,7 @@ impl cosmic::Application for AppModel {
                 .center_y(Length::Fill)
                 .padding(cosmic::theme::spacing().space_s);
 
-            column![window_content].into()
+            iced::widget::column![window_content].into()
         } else {
             Self::build_undesired_view()
         }
@@ -413,11 +410,17 @@ impl cosmic::Application for AppModel {
     }
 
     fn on_app_exit(&mut self) -> Option<Self::Message> {
+        // finish and stage currently edited note if some
+        if self.editing.is_some() {
+            self.on_finish_edit();
+        }
+        // save changes if any to persistent storage
         if self.notes.is_changed()
             && let Err(e) = self.save_notes()
         {
             eprintln!("Failed saving notes on exit: {e}");
         }
+        // warn if deleted notes were dropped
         let count_deleted = self.notes.get_all_deleted_notes().count();
         if count_deleted > 0 {
             println!("Finally drop deleted notes on exit: {count_deleted}");
@@ -431,6 +434,16 @@ impl AppModel {
         self.windows
             .get(&window_id)
             .and_then(|context| self.notes.try_get_note_mut(&context.note_id))
+    }
+
+    fn get_edit_now(&self, window_id: Id) -> Option<&EditContext> {
+        self.editing.as_ref().and_then(|context| {
+            if context.window_id == window_id {
+                Some(context)
+            } else {
+                None
+            }
+        })
     }
 
     fn load_notes_or_default(config: &Config) -> NotesCollection {
@@ -677,7 +690,29 @@ impl AppModel {
         id: Id,
         window_context: &WindowContext,
     ) -> Element<'a, Message> {
-        let note_toolbar = if self.editing.is_none() {
+        if let Some(edit_context) = self.get_edit_now(id) {
+            let note_toolbar = widget::row::with_capacity(1).push(
+                self.icons
+                    .edit()
+                    .apply(widget::button::icon)
+                    .icon_size(ICON_SIZE)
+                    .on_press(Message::NoteEdit(id, false))
+                    .width(Length::Shrink),
+            );
+
+            let note_content = widget::container(
+                widget::text_editor(&edit_context.content)
+                    .on_action(Message::Edit)
+                    .height(Length::Fill),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill);
+
+            widget::column::with_capacity(2)
+                .push(note_toolbar)
+                .push(note_content)
+                .into()
+        } else {
             let is_locked = self
                 .notes
                 .try_get_note(&window_context.note_id)
@@ -734,44 +769,23 @@ impl AppModel {
                             .width(Length::Shrink),
                     );
             }
-            note_toolbar
-        } else {
-            widget::row::with_capacity(1).push(
-                self.icons
-                    .edit()
-                    .apply(widget::button::icon)
-                    .icon_size(ICON_SIZE)
-                    .on_press(Message::NoteEdit(id, false))
-                    .width(Length::Shrink),
-            )
-        };
 
-        let mut note_content = widget::column::with_capacity(2)
-            .width(Length::Fill)
-            .height(Length::Fill);
-        if let Some(edit_context) = &self.editing
-            && edit_context.window_id == id
-        {
-            // edit context is related to specific sticky window (id)
-            note_content = note_content.push(
-                widget::text_editor(&edit_context.content)
-                    .on_action(Message::Edit)
-                    .height(Length::Fill),
-            );
-        } else {
-            note_content = note_content.push(widget::text(
-                if let Some(note) = self.notes.try_get_note(&window_context.note_id) {
-                    note.get_content()
-                } else {
-                    INVISIBLE_TEXT
-                },
-            ));
+            let note_content = widget::column::with_capacity(2)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .push(widget::text(
+                    if let Some(note) = self.notes.try_get_note(&window_context.note_id) {
+                        note.get_content()
+                    } else {
+                        INVISIBLE_TEXT
+                    },
+                ));
+
+            widget::column::with_capacity(2)
+                .push(note_toolbar)
+                .push(note_content)
+                .into()
         }
-
-        widget::column::with_capacity(2)
-            .push(note_toolbar)
-            .push(note_content)
-            .into()
     }
 }
 
