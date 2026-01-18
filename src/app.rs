@@ -824,27 +824,25 @@ impl AppModel {
                             .width(Length::Shrink),
                     );
                 }
+                note_toolbar = note_toolbar.push(
+                    self.icons
+                        .delete()
+                        .apply(widget::button::icon)
+                        .icon_size(ICON_SIZE)
+                        .on_press(Message::NoteDelete(id))
+                        .width(Length::Shrink),
+                );
             }
-            note_toolbar = note_toolbar.push(
-                self.icons
-                    .create()
-                    .apply(widget::button::icon)
-                    .icon_size(ICON_SIZE)
-                    .on_press(Message::NoteNew)
-                    .width(Length::Shrink),
-            );
-            if !is_locked {
-                note_toolbar = note_toolbar
-                    .push(widget::horizontal_space().width(Length::Fill))
-                    .push(
-                        self.icons
-                            .delete()
-                            .apply(widget::button::icon)
-                            .icon_size(ICON_SIZE)
-                            .on_press(Message::NoteDelete(id))
-                            .width(Length::Shrink),
-                    );
-            }
+            note_toolbar = note_toolbar
+                .push(widget::horizontal_space().width(Length::Fill))
+                .push(
+                    self.icons
+                        .create()
+                        .apply(widget::button::icon)
+                        .icon_size(ICON_SIZE)
+                        .on_press(Message::NoteNew)
+                        .width(Length::Shrink),
+                );
 
             let note_content = widget::column::with_capacity(2)
                 .width(Length::Fill)
