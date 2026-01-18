@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub struct NoteData {
     content: String,
     modified: DateTime<Utc>,
-    pub style: Uuid,
+    style_id: Uuid,
     position: (usize, usize),
     size: (usize, usize),
     is_locked: bool,
@@ -25,7 +25,7 @@ impl NoteData {
             modified: Utc::now(),
             position: (0, 0),
             size: (DEF_NOTE_WIDTH, DEF_NOTE_HEIGHT),
-            style,
+            style_id: style,
             is_locked: false,
             is_visible: true,
             is_dirty: false,
@@ -46,7 +46,7 @@ impl NoteData {
         Self {
             content: src.body,
             modified: src.last_modified.into(),
-            style: src.cat,
+            style_id: src.cat,
             position,
             size,
             is_locked: src.properties.locked,
@@ -98,6 +98,10 @@ impl NoteData {
         self.size.1
     }
 
+    pub fn style(&self) -> Uuid {
+        self.style_id
+    }
+
     pub fn set_position(&mut self, left: usize, top: usize) {
         if self.position != (left, top) {
             self.position = (left, top);
@@ -130,6 +134,13 @@ impl NoteData {
     pub fn set_visibility(&mut self, on: bool) {
         if self.is_visible != on {
             self.is_visible = on;
+            self.is_dirty = true;
+        }
+    }
+
+    pub fn set_style(&mut self, style_id: Uuid) {
+        if self.style_id != style_id {
+            self.style_id = style_id;
             self.is_dirty = true;
         }
     }

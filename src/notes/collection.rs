@@ -112,7 +112,7 @@ impl From<NotesCollection> for StickyNotesDatabase {
                     size: vec![note.width(), note.height()],
                     locked: note.is_locked(),
                 },
-                cat: note.style,
+                cat: note.style(),
             })
             .collect();
         let categories = value
@@ -206,6 +206,31 @@ impl NotesCollection {
         self.styles.iter()
     }
 
+    pub fn get_style_names(&self) -> Vec<String> {
+        self.get_all_styles()
+            .map(|(_id, style)| style.name.clone())
+            .collect()
+    }
+
+    pub fn try_get_note_style_index(&self, note_id: &Uuid) -> Option<usize> {
+        self.try_get_note(note_id).and_then(|note| {
+            self.get_all_styles()
+                .enumerate()
+                .find(|(_, (id, _))| **id == note.style())
+                .map(|(index, (_, _))| index)
+        })
+    }
+
+    pub fn try_set_note_style_by_index(&mut self, note_id: &Uuid, style_index: usize) -> bool {
+        if let Some(style_id) = self.get_all_styles().nth(style_index).map(|(id, _)| *id) {
+            self.try_get_note_mut(note_id)
+                .map(|note| note.set_style(style_id))
+                .is_some()
+        } else {
+            false
+        }
+    }
+
     pub fn new_note(&mut self) -> Uuid {
         let id = Uuid::new_v4();
         self.notes.insert(id, NoteData::new(self.default_style));
@@ -241,7 +266,7 @@ impl NotesCollection {
 
     pub fn try_get_note_style(&self, note_id: Uuid) -> Option<&NoteStyle> {
         self.try_get_note(&note_id)
-            .and_then(|note| self.get_style_or_default(&note.style))
+            .and_then(|note| self.get_style_or_default(&note.style()))
     }
 
     // test if collection looks like instantiated by default()

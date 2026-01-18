@@ -63,6 +63,7 @@ pub struct AppModel {
 
 struct WindowContext {
     note_id: Uuid,
+    select_style: Option<Vec<String>>,
 }
 
 struct EditContext {
@@ -96,11 +97,12 @@ pub enum Message {
     // response on window::get_position() request
     WindowPositionResponse((Id, Option<Point>)),
     // note image button actions
-    NoteLock(Id, bool), // lock / unlock note
-    NoteEdit(Id, bool), // edit / save note content
-    NoteColor(Id),      // select style (background, font) for sticky window
-    NoteNew,            // create new note with default syle and begin edit
-    NoteDelete(Id),     // delete note
+    NoteLock(Id, bool),          // lock / unlock note
+    NoteEdit(Id, bool),          // edit / save note content
+    NoteStyle(Id),               // select style (background, font) for sticky window
+    NoteSyleSelected(Id, usize), // style (background, font) for sticky window was selected by index in styles collection
+    NoteNew,                     // create new note with default syle and begin edit
+    NoteDelete(Id),              // delete note
 }
 
 /// Create a COSMIC application from the app model
@@ -292,6 +294,7 @@ impl cosmic::Application for AppModel {
     ///
     /// Tasks may be returned for asynchronous execution of code in the background
     /// on the application's async runtime.
+    #[allow(clippy::too_many_lines)]
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
             Message::UpdateConfig(config) => {
@@ -352,7 +355,13 @@ impl cosmic::Application for AppModel {
 
             // message related to windows management
             Message::NewWindow(id, note_id) => {
-                self.windows.insert(id, WindowContext { note_id });
+                self.windows.insert(
+                    id,
+                    WindowContext {
+                        note_id,
+                        select_style: None,
+                    },
+                );
             }
 
             // redirect edit actions to the edit context
@@ -394,8 +403,16 @@ impl cosmic::Application for AppModel {
                 }
             }
 
-            Message::NoteColor(id) => {
-                println!("{id}: change style");
+            Message::NoteStyle(id) => {
+                if let Some(context) = self.windows.get_mut(&id) {
+                    context.select_style = Some(self.notes.get_style_names());
+                } else {
+                    eprintln!("{id}: note is not found to change style");
+                }
+            }
+
+            Message::NoteSyleSelected(id, style_index) => {
+                self.on_style_selected(id, style_index);
             }
 
             Message::NoteNew => {
@@ -587,6 +604,20 @@ impl AppModel {
         }
     }
 
+    fn on_style_selected(&mut self, id: Id, style_index: usize) {
+        if let Some(context) = self.windows.get_mut(&id) {
+            context.select_style = None;
+            if !self
+                .notes
+                .try_set_note_style_by_index(&context.note_id, style_index)
+            {
+                eprintln!("{id}: selectd style was not found to assign to sticky window");
+            }
+        } else {
+            eprintln!("{id}: sticky window is not found to change style");
+        }
+    }
+
     fn on_delete_note(&mut self, id: Id) -> Task<cosmic::Action<Message>> {
         if let Some(context) = self.windows.remove(&id) {
             self.notes.delete_note(context.note_id);
@@ -685,10 +716,11 @@ impl AppModel {
             .into()
     }
 
+    #[allow(clippy::too_many_lines)]
     fn build_sticky_window_interior<'a>(
         &'a self,
         id: Id,
-        window_context: &WindowContext,
+        window_context: &'a WindowContext,
     ) -> Element<'a, Message> {
         if let Some(edit_context) = self.get_edit_now(id) {
             let note_toolbar = widget::row::with_capacity(1).push(
@@ -717,6 +749,7 @@ impl AppModel {
                 .notes
                 .try_get_note(&window_context.note_id)
                 .is_some_and(NoteData::is_locked);
+
             let mut note_toolbar = widget::row::with_capacity(7)
                 .spacing(cosmic::theme::spacing().space_s)
                 .push(
@@ -731,23 +764,35 @@ impl AppModel {
                     .width(Length::Shrink),
                 );
             if !is_locked {
-                note_toolbar = note_toolbar
-                    .push(
-                        self.icons
-                            .edit()
-                            .apply(widget::button::icon)
-                            .icon_size(ICON_SIZE)
-                            .on_press(Message::NoteEdit(id, true))
-                            .width(Length::Shrink),
-                    )
-                    .push(
+                note_toolbar = note_toolbar.push(
+                    self.icons
+                        .edit()
+                        .apply(widget::button::icon)
+                        .icon_size(ICON_SIZE)
+                        .on_press(Message::NoteEdit(id, true))
+                        .width(Length::Shrink),
+                );
+                if let Some(styles) = &window_context.select_style {
+                    // add style pick list
+                    note_toolbar = note_toolbar.push(
+                        widget::dropdown(
+                            styles,
+                            self.notes.try_get_note_style_index(&window_context.note_id),
+                            move |index| Message::NoteSyleSelected(id, index),
+                        )
+                        .placeholder("Choose a language..."),
+                    );
+                } else {
+                    // add button "down"
+                    note_toolbar = note_toolbar.push(
                         self.icons
                             .down()
                             .apply(widget::button::icon)
                             .icon_size(ICON_SIZE)
-                            .on_press(Message::NoteColor(id))
+                            .on_press(Message::NoteStyle(id))
                             .width(Length::Shrink),
                     );
+                }
             }
             note_toolbar = note_toolbar.push(
                 self.icons
