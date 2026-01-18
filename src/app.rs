@@ -8,7 +8,6 @@ use crate::{
     fl, icons,
     notes::{INVISIBLE_TEXT, NoteData, NotesCollection},
 };
-use cosmic::prelude::*;
 use cosmic::{
     cosmic_config::{self, ConfigSet, CosmicConfigEntry},
     iced::{
@@ -20,6 +19,7 @@ use cosmic::{
     },
     widget::{self, menu},
 };
+use cosmic::{iced::Alignment, prelude::*};
 use uuid::Uuid;
 
 // const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
@@ -83,6 +83,7 @@ pub enum Message {
     SaveNotes,
     ImportNotes,
     ExportNotes,
+    SetDefaultStyle(usize), // set deafault style by index
     // notes collection load result shared for Load and Import
     LoadNotesCompleted(NotesCollection),
     LoadNotesFailed(String), // error message
@@ -166,7 +167,7 @@ impl cosmic::Application for AppModel {
         let mut startup_tasks: Vec<Task<cosmic::Action<Message>>> = app.spawn_sticky_windows();
         // Import notes: if notes is default and empty (so, it was not loaded from config)
         // and if indicator-stickynotes is set try import from it
-        if app.notes.is_default() {
+        if app.notes.is_default_collection() {
             // try read import_file name from config or construct default path to indicator-stickynotes data file
             let import_file = app.config.import_file.clone();
             startup_tasks.push(cosmic::task::future(Self::import_notes(import_file)));
@@ -208,7 +209,7 @@ impl cosmic::Application for AppModel {
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<'_, Self::Message> {
-        Self::build_undesired_view()
+        self.build_main_view()
     }
 
     /// Constructs views for other windows.
@@ -245,7 +246,7 @@ impl cosmic::Application for AppModel {
 
             iced::widget::column![window_content].into()
         } else {
-            Self::build_undesired_view()
+            self.build_main_view()
         }
     }
 
@@ -334,6 +335,14 @@ impl cosmic::Application for AppModel {
                 let export_file = self.config.import_file.clone();
                 let notes = self.notes.clone();
                 return cosmic::task::future(Self::export_notes(export_file, notes));
+            }
+
+            Message::SetDefaultStyle(style_index) => {
+                if !self.notes.try_set_default_style_by_index(style_index) {
+                    eprintln!(
+                        "failed cghanging default sticly window style to {style_index}: no such style"
+                    );
+                }
             }
 
             Message::LoadNotesCompleted(notes) => {
@@ -708,9 +717,31 @@ impl AppModel {
         )
     }
 
-    fn build_undesired_view() -> Element<'static, Message> {
-        widget::column::with_capacity(1)
-            .push(widget::text(INVISIBLE_TEXT))
+    fn build_main_view(&self) -> Element<'static, Message> {
+        let styles = self.notes.get_style_names();
+        if styles.is_empty() {
+            eprintln!("Not any sticky window style is available");
+            return widget::column::with_capacity(1)
+                .push(widget::text(INVISIBLE_TEXT))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into();
+        }
+        let default_style_index = self.notes.default_style_index();
+        widget::column::with_capacity(2)
+            .push(widget::divider::horizontal::light())
+            .push(
+                widget::row::with_capacity(2)
+                    .spacing(cosmic::theme::spacing().space_m)
+                    .push(widget::text(fl!("select-default-style")))
+                    .align_y(Alignment::Center)
+                    .push(
+                        widget::dropdown(styles, default_style_index, move |index| {
+                            Message::SetDefaultStyle(index)
+                        })
+                        .placeholder("Choose a style..."),
+                    ),
+            )
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
@@ -780,7 +811,7 @@ impl AppModel {
                             self.notes.try_get_note_style_index(&window_context.note_id),
                             move |index| Message::NoteSyleSelected(id, index),
                         )
-                        .placeholder("Choose a language..."),
+                        .placeholder(fl!("select-default-style")),
                     );
                 } else {
                     // add button "down"

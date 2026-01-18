@@ -8,5 +8,6 @@ import = Import
 export = Export
 view = View
 about = About
+select-default-style = New sticky window style:
 repository = Repository
 git-description = Git commit {$hash} on {$date}

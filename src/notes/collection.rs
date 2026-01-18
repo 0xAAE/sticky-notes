@@ -258,19 +258,47 @@ impl NotesCollection {
         }
     }
 
-    pub fn get_style_or_default(&self, style_id: &Uuid) -> Option<&NoteStyle> {
-        self.styles
-            .get(style_id)
-            .or_else(|| self.styles.get(&self.default_style))
+    pub fn default_style(&self) -> Option<&NoteStyle> {
+        self.styles.get(&self.default_style)
+    }
+
+    pub fn default_style_index(&self) -> Option<usize> {
+        self.default_style()
+            .map(|style| &style.name)
+            .and_then(|name| {
+                self.styles
+                    .iter()
+                    .enumerate()
+                    .find(|(_, (_, v))| &v.name == name)
+                    .map(|(i, _)| i)
+            })
+    }
+
+    pub fn try_set_default_style_by_index(&mut self, style_index: usize) -> bool {
+        self.get_all_styles()
+            .nth(style_index)
+            .map(|(id, _)| *id)
+            .map(|id| {
+                if self.default_style != id {
+                    self.default_style = id;
+                    self.is_dirty = true;
+                }
+            })
+            .is_some()
+    }
+
+    pub fn get_style(&self, style_id: &Uuid) -> Option<&NoteStyle> {
+        self.styles.get(style_id)
     }
 
     pub fn try_get_note_style(&self, note_id: Uuid) -> Option<&NoteStyle> {
         self.try_get_note(&note_id)
-            .and_then(|note| self.get_style_or_default(&note.style()))
+            .and_then(|note| self.get_style(&note.style()))
+            .or_else(|| self.default_style())
     }
 
     // test if collection looks like instantiated by default()
-    pub fn is_default(&self) -> bool {
+    pub fn is_default_collection(&self) -> bool {
         self.notes.is_empty() && self.styles.len() < 2
     }
 
