@@ -8,10 +8,11 @@ use crate::{
     fl, icons,
     notes::{INVISIBLE_TEXT, NoteData, NotesCollection},
 };
+use cosmic::prelude::*;
 use cosmic::{
     cosmic_config::{self, ConfigSet, CosmicConfigEntry},
     iced::{
-        self, Color, Event, Length, Point, Size, Subscription,
+        self, Alignment, Color, Event, Length, Point, Size, Subscription,
         core::mouse::Button as MouseButton,
         event::Status as EventStatus,
         mouse::Event as MouseEvent,
@@ -19,7 +20,6 @@ use cosmic::{
     },
     widget::{self, menu},
 };
-use cosmic::{iced::Alignment, prelude::*};
 use uuid::Uuid;
 
 // const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");

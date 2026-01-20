@@ -52,6 +52,8 @@ features = [
     "wayland",
     # GPU-accelerated rendering
     "wgpu",
+    # Uncomment if markdwon is required
+    #"markdown"
 ]
 
 # Uncomment to test a locally-cloned libcosmic
