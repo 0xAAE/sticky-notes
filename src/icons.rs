@@ -15,6 +15,8 @@ pub mod inner {
         include_bytes!("../resources/icons/hicolor/scalable/edit-symbolic.svg");
     const ICON_DOWN: &[u8] =
         include_bytes!("../resources/icons/hicolor/scalable/pan-down-symbolic.svg");
+    const ICON_UNDO: &[u8] =
+        include_bytes!("../resources/icons/hicolor/scalable/edit-undo-symbolic.svg");
 
     pub struct IconSet {
         lock: Handle,
@@ -23,6 +25,7 @@ pub mod inner {
         down: Handle,
         create: Handle,
         delete: Handle,
+        undo: Handle,
     }
 
     impl IconSet {
@@ -34,6 +37,7 @@ pub mod inner {
                 down: icon::from_svg_bytes(ICON_DOWN),
                 create: icon::from_svg_bytes(ICON_NEW),
                 delete: icon::from_svg_bytes(ICON_DELETE),
+                undo: icon::from_svg_bytes(ICON_UNDO),
             }
         }
 
@@ -60,6 +64,10 @@ pub mod inner {
         pub fn delete(&self) -> Handle {
             self.delete.clone()
         }
+
+        pub fn undo(&self) -> Handle {
+            self.undo.clone()
+        }
     }
 }
 
@@ -74,6 +82,7 @@ mod inner {
     pub const XDG_DELETE: &str = "edit-delete-symbolic";
     pub const XDG_EDIT: &str = "edit-symbolic";
     pub const XDG_DOWN: &str = "pan-down-symbolic";
+    pub const XDG_UNDO: &str = "edit-undo-symbolic";
 
     pub struct IconSet {
         lock: Named,
@@ -82,6 +91,7 @@ mod inner {
         down: Named,
         create: Named,
         delete: Named,
+        undo: Named,
     }
 
     impl IconSet {
@@ -93,6 +103,7 @@ mod inner {
                 down: icon::from_name(XDG_DOWN),
                 create: icon::from_name(XDG_NEW),
                 delete: icon::from_name(XDG_DELETE),
+                undo: icon::from_name(XDG_UNDO),
             }
         }
 
@@ -118,6 +129,10 @@ mod inner {
 
         pub fn delete(&self) -> Handle {
             self.delete.clone().into()
+        }
+
+        pub fn undo(&self) -> Handle {
+            self.undo.clone().into()
         }
     }
 }

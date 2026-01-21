@@ -16,6 +16,7 @@ use cosmic::{
         core::mouse::Button as MouseButton,
         event::Status as EventStatus,
         mouse::Event as MouseEvent,
+        widget::keyed_column,
         window::{self, Event as WindowEvent, Id, Position},
     },
     widget::{self, menu},
@@ -107,6 +108,7 @@ pub enum Message {
     NoteSyleSelected(Id, usize), // style (background, font) for sticky window was selected by index in styles collection
     NoteNew,                     // create new note with default syle and begin edit
     NoteDelete(Id),              // delete note
+    NoteRestore(Uuid),           // restore note
 }
 
 /// Create a COSMIC application from the app model
@@ -250,31 +252,9 @@ impl cosmic::Application for AppModel {
                 .notes
                 .try_get_note_style(window_context.note_id)
                 .map(|style| style.bgcolor);
-
             let window_interior = self.build_sticky_window_interior(id, window_context);
-
-            let window_content = widget::container(window_interior)
-                .class(cosmic::style::Container::custom(move |theme: &Theme| {
-                    let cosmic = theme.cosmic();
-                    iced::widget::container::Style {
-                        icon_color: Some(Color::from(cosmic.background.on)),
-                        text_color: Some(Color::from(cosmic.background.on)),
-                        background: Some(iced::Background::Color(if let Some(bg) = note_bg {
-                            bg
-                        } else {
-                            cosmic.background.base.into()
-                        })),
-                        border: iced::Border {
-                            radius: cosmic.corner_radii.radius_s.into(),
-                            ..Default::default()
-                        },
-                        shadow: iced::Shadow::default(),
-                    }
-                }))
-                .center_x(Length::Fill)
-                .center_y(Length::Fill)
-                .padding(cosmic::theme::spacing().space_s);
-
+            let window_content =
+                Self::with_background(window_interior, note_bg.unwrap_or(Color::WHITE));
             iced::widget::column![window_content].into()
         } else {
             self.build_main_view()
@@ -470,6 +450,10 @@ impl cosmic::Application for AppModel {
             Message::NoteDelete(id) => {
                 return self.on_delete_note(id);
             }
+
+            Message::NoteRestore(note_id) => {
+                return self.on_restore_note(note_id);
+            }
         }
         Task::none()
     }
@@ -613,6 +597,15 @@ impl AppModel {
         }
     }
 
+    fn on_restore_note(&mut self, note_id: Uuid) -> Task<cosmic::Action<Message>> {
+        if let Some(note) = self.notes.restore_deleted_note(note_id) {
+            let (_id, task) = Self::spawn_sticky_window(&note_id, note);
+            task
+        } else {
+            Task::none()
+        }
+    }
+
     fn on_change_note_locking(&mut self, window_id: Id, is_on: bool) {
         if let Some(note) = self.try_get_note_mut(window_id) {
             if is_on {
@@ -748,10 +741,7 @@ impl AppModel {
         commands
     }
 
-    fn spawn_sticky_window(
-        note_id: &Uuid,
-        note: &mut NoteData,
-    ) -> (Id, Task<cosmic::Action<Message>>) {
+    fn spawn_sticky_window(note_id: &Uuid, note: &NoteData) -> (Id, Task<cosmic::Action<Message>>) {
         let (id, spawn_window) = window::open(window::Settings {
             position: Position::Specific(Point::new(to_f32(note.left()), to_f32(note.top()))),
             size: Size::new(to_f32(note.width()), to_f32(note.height())),
@@ -773,7 +763,7 @@ impl AppModel {
             .collect::<Vec<Task<cosmic::Action<Message>>>>()
     }
 
-    fn build_main_view(&self) -> Element<'static, Message> {
+    fn build_main_view(&self) -> Element<'_, Message> {
         let styles = self.notes.get_style_names();
         if styles.is_empty() {
             eprintln!("Not any sticky window style is available");
@@ -784,7 +774,7 @@ impl AppModel {
                 .into();
         }
         let default_style_index = self.notes.default_style_index();
-        widget::column::with_capacity(2)
+        widget::column::with_capacity(4)
             .push(widget::divider::horizontal::light())
             .push(
                 widget::row::with_capacity(2)
@@ -797,6 +787,17 @@ impl AppModel {
                         })
                         .placeholder("Choose a style..."),
                     ),
+            )
+            .push(widget::text(fl!("recently-deleted")))
+            .push(
+                widget::scrollable(keyed_column(
+                    //(0..=100).map(|i| (i, text!("Item {i}").into())),
+                    self.notes.get_all_deleted_notes().map(|(note_id, note)| {
+                        (*note_id, self.build_note_list_item(*note_id, note))
+                    }),
+                ))
+                .width(Length::Fill)
+                .height(Length::Fill),
             )
             .width(Length::Fill)
             .height(Length::Fill)
@@ -916,6 +917,52 @@ impl AppModel {
                 .push(note_content)
                 .into()
         }
+    }
+
+    fn build_note_list_item<'a>(&self, note_id: Uuid, note: &'a NoteData) -> Element<'a, Message> {
+        let child = widget::row::with_capacity(2)
+            .spacing(cosmic::theme::spacing().space_s)
+            .width(Length::Fill)
+            .push(widget::text(note.get_title()).width(Length::Fill))
+            .push(
+                self.icons
+                    .undo()
+                    .apply(widget::button::icon)
+                    .icon_size(ICON_SIZE)
+                    .on_press(Message::NoteRestore(note_id))
+                    .width(Length::Shrink),
+            )
+            .into();
+        if let Some(note_bg) = self
+            .notes
+            .try_get_note_style(note_id)
+            .map(|style| style.bgcolor)
+        {
+            Self::with_background(child, note_bg)
+        } else {
+            child
+        }
+    }
+
+    fn with_background(child: Element<'_, Message>, bgcolor: Color) -> Element<'_, Message> {
+        widget::container(child)
+            .class(cosmic::style::Container::custom(move |theme: &Theme| {
+                let cosmic = theme.cosmic();
+                iced::widget::container::Style {
+                    icon_color: Some(Color::from(cosmic.background.on)),
+                    text_color: Some(Color::from(cosmic.background.on)),
+                    background: Some(iced::Background::Color(bgcolor)),
+                    border: iced::Border {
+                        radius: cosmic.corner_radii.radius_s.into(),
+                        ..Default::default()
+                    },
+                    shadow: iced::Shadow::default(),
+                }
+            }))
+            // .center_x(Length::Fill)
+            // .center_y(Length::Fill)
+            .padding(cosmic::theme::spacing().space_xs)
+            .into()
     }
 }
 

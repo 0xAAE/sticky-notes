@@ -255,13 +255,13 @@ impl NotesCollection {
         self.deleted_notes.iter()
     }
 
-    pub fn restore_deleted_note(&mut self, note_id: Uuid) -> bool {
+    pub fn restore_deleted_note(&mut self, note_id: Uuid) -> Option<&NoteData> {
         if let Some((id, note)) = self.deleted_notes.remove_entry(&note_id) {
             self.is_dirty = true;
             self.notes.insert(id, note);
-            true
+            self.notes.get(&id)
         } else {
-            false
+            None
         }
     }
 
@@ -299,8 +299,16 @@ impl NotesCollection {
     }
 
     pub fn try_get_note_style(&self, note_id: Uuid) -> Option<&NoteStyle> {
+        // the first, search among live notes
         self.try_get_note(&note_id)
             .and_then(|note| self.get_style(&note.style()))
+            // otherwise search in deleted notes
+            .or_else(|| {
+                self.get_all_deleted_notes()
+                    .find(|(id, _)| **id == note_id)
+                    .and_then(|(_, note)| self.get_style(&note.style()))
+            })
+            // at the end return default style
             .or_else(|| self.default_style())
     }
 
@@ -416,7 +424,7 @@ fn create_read_update_delete_restore_operations() {
     assert_eq!(collection.get_all_deleted_notes().count(), 1);
     // restore note
     let result = collection.restore_deleted_note(note_id);
-    assert!(result);
+    assert!(result.is_some());
     // collection is changed
     assert!(collection.is_changed());
     // no more notes to restore

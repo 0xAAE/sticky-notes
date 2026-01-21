@@ -11,6 +11,7 @@ about = About
 hide-all = Hide all
 show-all = Show all
 lock-all = Lock all
+recently-deleted = Recently deleted notes (you may restore any)
 select-default-style = New sticky window style:
 repository = Repository
 git-description = Git commit {$hash} on {$date}

@@ -11,6 +11,7 @@ about = Информация
 hide-all = Скрыть все
 show-all = Показать все
 lock-all = Заблокировать все
+recently-deleted = Недавно удаленные заметки (можно восстановить любую)
 select-default-style = Стиль для новой заметки:
 repository = Репозиторий
 git-description = Git commit {$hash} от {$date}
