@@ -17,3 +17,4 @@ recently-deleted-description = Чтобы восстановить ранее у
 select-default-style = Стиль для новой заметки:
 repository = Репозиторий
 git-description = Git commit {$hash} от {$date}
+problem-text = Внутренняя ошибка: см. сообщения об  ошибках в терминале или в системном журнале

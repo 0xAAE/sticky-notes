@@ -5,8 +5,7 @@ use std::collections::HashMap;
 use crate::{
     config::Config,
     fl, icons,
-    notes::{INVISIBLE_TEXT, NoteData, NotesCollection},
-    utils::{to_f32, to_usize},
+    notes::{NoteData, NotesCollection},
 };
 use cosmic::prelude::*;
 use cosmic::{
@@ -16,12 +15,20 @@ use cosmic::{
         core::mouse::Button as MouseButton,
         event::Status as EventStatus,
         mouse::Event as MouseEvent,
-        widget::keyed_column,
         window::{self, Event as WindowEvent, Id, Position},
     },
     widget::{self, menu},
 };
+use restore_view::build_restore_view;
+use sticky_window::StickyWindow;
+use utils::with_background;
+pub use utils::{to_f32, to_usize};
 use uuid::Uuid;
+
+mod restore_view;
+mod sticky_window;
+mod styles_view;
+mod utils;
 
 /// The application model stores app-specific state used to describe its interface and
 /// drive its logic.
@@ -35,27 +42,14 @@ pub struct AppModel {
     config: Config,
     /// Content itself
     notes: NotesCollection,
-    /// currentluy edited content
-    editing: Option<EditContext>,
     /// windows by ID
-    windows: HashMap<Id, WindowContext>,
+    windows: HashMap<Id, StickyWindow>,
     cursor_window: Option<Id>,
     restore_window: Option<Id>,
     #[cfg(not(feature = "xdg_icons"))]
     icons: icons::IconSet,
     #[cfg(feature = "xdg_icons")]
     icons: icons::IconSet,
-}
-
-struct WindowContext {
-    note_id: Uuid,
-    select_style: Option<Vec<String>>,
-}
-
-struct EditContext {
-    content: widget::text_editor::Content,
-    note_id: Uuid,
-    window_id: Id,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -82,7 +76,7 @@ pub enum Message {
     ExportNotesCompleted,
     ExportNotesFailed(String), // error message
     // redirect editor actions to the edit context
-    Edit(widget::text_editor::Action),
+    Edit(Id, widget::text_editor::Action),
     // iced "system" events handling
     AppWindowEvent((Id, WindowEvent)),
     AppMouseEvent((Id, MouseEvent)),
@@ -149,7 +143,6 @@ impl cosmic::Application for AppModel {
             // Optional configuration file for an application.
             config,
             notes,
-            editing: None,
             windows: HashMap::new(),
             cursor_window: None,
             restore_window: None,
@@ -173,19 +166,10 @@ impl cosmic::Application for AppModel {
     /// Elements to pack at the start of the header bar.
     fn header_start(&self) -> Vec<Element<'_, Self::Message>> {
         let import_available = !self.config.import_file.is_empty();
-        let hide_avail = self
-            .notes
-            .get_all_notes()
-            .any(|(_, note)| note.is_visible());
-        let show_avail = self
-            .notes
-            .get_all_notes()
-            .any(|(_, note)| !note.is_visible());
-        let lock_avail = self
-            .notes
-            .get_all_notes()
-            .any(|(_, note)| !note.is_locked());
-        let restore_avail = self.notes.get_all_deleted_notes().next().is_some();
+        let hide_avail = self.notes.iter_notes().any(|(_, note)| note.is_visible());
+        let show_avail = self.notes.iter_notes().any(|(_, note)| !note.is_visible());
+        let lock_avail = self.notes.iter_notes().any(|(_, note)| !note.is_locked());
+        let restore_avail = self.notes.iter_deleted_notes().next().is_some();
         let menu_bar = menu::bar(vec![menu::Tree::with_children(
             menu::root(fl!("data")).apply(Element::from),
             menu::items(
@@ -246,21 +230,25 @@ impl cosmic::Application for AppModel {
 
     /// Constructs views for other windows.
     fn view_window(&self, id: Id) -> Element<'_, Self::Message> {
-        if let Some(window_context) = self.windows.get(&id) {
+        if let Some(sticky_window) = self.windows.get(&id) {
             let note_bg = self
                 .notes
-                .try_get_note_style(window_context.note_id)
+                .try_get_note_style(sticky_window.get_note_id())
                 .map_or(Color::WHITE, |style| style.bgcolor);
-            let window_content = self.build_sticky_window_view(id, window_context);
-            let window_view = Self::with_background(window_content, note_bg);
+            let window_content = sticky_window.build_view(id, &self.notes, &self.icons);
+            let window_view = with_background(window_content, note_bg);
             iced::widget::column![window_view].into()
         } else if let Some(restore_id) = self.restore_window
             && restore_id == id
         {
-            widget::container(self.build_restore_view())
-                .class(cosmic::style::Container::Background)
-                .padding(cosmic::theme::spacing().space_s)
-                .into()
+            widget::container(build_restore_view(
+                &self.notes,
+                &self.icons,
+                self.config.toolbar_icon_size,
+            ))
+            .class(cosmic::style::Container::Background)
+            .padding(cosmic::theme::spacing().space_s)
+            .into()
         } else {
             self.build_main_view()
         }
@@ -327,34 +315,32 @@ impl cosmic::Application for AppModel {
 
             // messages related to loading and saving notes
             Message::LoadNotes => {
-                if self.notes.is_changed() {
+                if self.notes.is_unsaved() {
                     // todo: ask to overwrite unsaved notes
                     eprintln!("drop unsaved changes while loading collection");
                 }
-                self.editing = None;
                 self.notes = Self::load_notes_or_default(&self.config);
             }
 
             Message::SaveNotes => {
+                //todo: stop edititng all sticky windows or ask user
                 if let Err(e) = self.save_notes() {
                     eprintln!("Failed saving notes: {e}");
                 }
-                self.editing = None;
             }
 
             Message::ImportNotes => {
-                if self.notes.is_changed() {
+                if self.notes.is_unsaved() {
                     // todo: ask to overwrite unsaved notes
                     eprintln!("drop unsaved changes while importing collection");
                 }
-                self.editing = None;
                 let import_file = self.config.import_file.clone();
                 // opposite to other cases return real task instead of none()
                 return cosmic::task::future(Self::import_notes(import_file));
             }
 
             Message::ExportNotes => {
-                self.editing = None;
+                //todo: stop edititng all sticky windows (?) or ask user about
                 let export_file = self.config.import_file.clone();
                 let notes = self.notes.clone();
                 return cosmic::task::future(Self::export_notes(export_file, notes));
@@ -380,8 +366,8 @@ impl cosmic::Application for AppModel {
                 }
             }
 
-            Message::LoadNotesCompleted(notes) => {
-                self.notes = notes;
+            Message::LoadNotesCompleted(imported) => {
+                self.notes = imported;
                 return cosmic::task::batch(self.spawn_sticky_windows());
             }
 
@@ -401,10 +387,7 @@ impl cosmic::Application for AppModel {
             Message::NewWindow(id, note_id) => {
                 self.windows.insert(
                     id,
-                    WindowContext {
-                        note_id,
-                        select_style: None,
-                    },
+                    StickyWindow::new(note_id, self.config.toolbar_icon_size),
                 );
             }
 
@@ -414,9 +397,11 @@ impl cosmic::Application for AppModel {
             }
 
             // redirect edit actions to the edit context
-            Message::Edit(action) => {
-                if let Some(context) = &mut self.editing {
-                    context.content.perform(action);
+            Message::Edit(window_id, action) => {
+                if let Some(sticky_window) = self.windows.get_mut(&window_id)
+                    && let Err(e) = sticky_window.do_edit_action(action)
+                {
+                    eprint!("failed perform edit: {e}");
                 }
             }
 
@@ -442,19 +427,15 @@ impl cosmic::Application for AppModel {
 
             Message::NoteEdit(id, is_on) => {
                 if is_on {
-                    if let Some(context) = self.windows.get(&id) {
-                        self.on_start_edit(id, context.note_id);
-                    } else {
-                        eprintln!("{id}: note is not found to begin edit");
-                    }
+                    self.on_start_edit(id);
                 } else {
-                    self.on_finish_edit();
+                    self.on_finish_edit(id);
                 }
             }
 
             Message::NoteStyle(id) => {
-                if let Some(context) = self.windows.get_mut(&id) {
-                    context.select_style = Some(self.notes.get_style_names());
+                if let Some(sticky_window) = self.windows.get_mut(&id) {
+                    sticky_window.allow_select_style(self.notes.get_style_names());
                 } else {
                     eprintln!("{id}: note is not found to change style");
                 }
@@ -480,18 +461,14 @@ impl cosmic::Application for AppModel {
     }
 
     fn on_app_exit(&mut self) -> Option<Self::Message> {
-        // finish and stage currently edited note if some
-        if self.editing.is_some() {
-            self.on_finish_edit();
-        }
         // save changes if any to persistent storage
-        if self.notes.is_changed()
+        if self.notes.is_unsaved()
             && let Err(e) = self.save_notes()
         {
             eprintln!("Failed saving notes on exit: {e}");
         }
         // warn if deleted notes were dropped
-        let count_deleted = self.notes.get_all_deleted_notes().count();
+        let count_deleted = self.notes.iter_deleted_notes().count();
         if count_deleted > 0 {
             println!("Finally drop deleted notes on exit: {count_deleted}");
         }
@@ -503,17 +480,7 @@ impl AppModel {
     fn try_get_note_mut(&mut self, window_id: Id) -> Option<&mut NoteData> {
         self.windows
             .get(&window_id)
-            .and_then(|context| self.notes.try_get_note_mut(&context.note_id))
-    }
-
-    fn try_get_edit_context(&self, window_id: Id) -> Option<&EditContext> {
-        self.editing.as_ref().and_then(|context| {
-            if context.window_id == window_id {
-                Some(context)
-            } else {
-                None
-            }
-        })
+            .and_then(|sticky_window| self.notes.try_get_note_mut(&sticky_window.get_note_id()))
     }
 
     fn load_notes_or_default(config: &Config) -> NotesCollection {
@@ -590,13 +557,10 @@ impl AppModel {
     }
 
     fn on_new_note_window(&mut self) -> Task<cosmic::Action<Message>> {
-        if self.editing.is_some() {
-            self.on_finish_edit();
-        }
         let note_id = self.notes.new_note();
         if let Some(note) = self.notes.try_get_note_mut(&note_id) {
-            let (id, task) = Self::spawn_sticky_window(&note_id, note);
-            self.on_start_edit(id, note_id);
+            let (window_id, task) = Self::spawn_sticky_window(&note_id, note);
+            self.on_start_edit(window_id);
             task
         } else {
             Task::none()
@@ -604,7 +568,7 @@ impl AppModel {
     }
 
     fn on_restore_note(&mut self, note_id: Uuid) -> Task<cosmic::Action<Message>> {
-        if let Some(note) = self.notes.restore_deleted_note(note_id) {
+        if let Some(note) = self.notes.try_restore_deleted_note(note_id) {
             let (_id, task) = Self::spawn_sticky_window(&note_id, note);
             task
         } else {
@@ -629,39 +593,37 @@ impl AppModel {
         }
     }
 
-    fn on_start_edit(&mut self, window_id: Id, note_id: Uuid) {
-        if let Some(note) = self.notes.try_get_note(&note_id) {
-            self.editing = Some(EditContext {
-                content: widget::text_editor::Content::with_text(note.get_content()),
-                note_id,
-                window_id,
-            });
+    fn on_start_edit(&mut self, window_id: Id) {
+        if let Some(sticky_window) = self.windows.get_mut(&window_id) {
+            if let Some(note) = self.notes.try_get_note(&sticky_window.get_note_id())
+                && let Err(e) = sticky_window.start_edit(note.get_content())
+            {
+                eprintln!("[{window_id}] failed to start edit: {e}");
+            }
         } else {
-            eprintln!("failed start editing: note {note_id} is not found");
+            eprintln!("[{window_id}] failed to start edit: sticky window is not found");
         }
     }
 
-    fn on_finish_edit(&mut self) {
-        if let Some(context) = &self.editing {
-            if let Some(note) = self.notes.try_get_note_mut(&context.note_id) {
-                note.set_content(context.content.text());
-            } else {
-                eprintln!(
-                    "failed to update note {} with text {}",
-                    context.note_id,
-                    context.content.text()
-                );
+    fn on_finish_edit(&mut self, window_id: Id) {
+        if let Some(sticky_window) = self.windows.get_mut(&window_id) {
+            if let Some(note) = self.notes.try_get_note_mut(&sticky_window.get_note_id()) {
+                match sticky_window.finish_edit() {
+                    Ok(text) => note.set_content(text),
+                    Err(e) => eprintln!("[{window_id}] failed to finish edit: {e}"),
+                }
             }
-            self.editing = None;
+        } else {
+            eprintln!("[{window_id}] failed to finish edit: sticky window is not found");
         }
     }
 
     fn on_style_selected(&mut self, id: Id, style_index: usize) {
-        if let Some(context) = self.windows.get_mut(&id) {
-            context.select_style = None;
+        if let Some(sticky_window) = self.windows.get_mut(&id) {
+            sticky_window.disable_select_style();
             if !self
                 .notes
-                .try_set_note_style_by_index(&context.note_id, style_index)
+                .try_set_note_style_by_index(sticky_window.get_note_id(), style_index)
             {
                 eprintln!("{id}: selectd style was not found to assign to sticky window");
             }
@@ -671,8 +633,8 @@ impl AppModel {
     }
 
     fn on_delete_note(&mut self, id: Id) -> Task<cosmic::Action<Message>> {
-        if let Some(context) = self.windows.remove(&id) {
-            self.notes.delete_note(context.note_id);
+        if let Some(sticky_window) = self.windows.remove(&id) {
+            self.notes.delete_note(sticky_window.get_note_id());
             window::close(id)
         } else {
             Task::none()
@@ -750,7 +712,7 @@ impl AppModel {
     fn spawn_sticky_windows(&mut self) -> Vec<Task<cosmic::Action<Message>>> {
         let existing_windows = std::mem::take(&mut self.windows);
         let mut commands: Vec<_> = existing_windows.into_keys().map(window::close).collect();
-        commands.extend(self.notes.get_all_notes_mut().map(|(note_id, note)| {
+        commands.extend(self.notes.iter_notes_mut().map(|(note_id, note)| {
             let (_, spawn_window) = Self::spawn_sticky_window(note_id, note);
             spawn_window
         }));
@@ -800,12 +762,12 @@ impl AppModel {
         if styles.is_empty() {
             eprintln!("Not any sticky window style is available");
             return widget::column::with_capacity(1)
-                .push(widget::text(INVISIBLE_TEXT))
+                .push(widget::text(fl!("problem-text")))
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .into();
         }
-        let default_style_index = self.notes.default_style_index();
+        let default_style_index = self.notes.try_get_default_style_index();
         widget::column::with_capacity(2)
             .spacing(cosmic::theme::spacing().space_s)
             .push(widget::divider::horizontal::light())
@@ -823,184 +785,6 @@ impl AppModel {
             )
             .width(Length::Fill)
             .height(Length::Fill)
-            .into()
-    }
-
-    fn build_restore_view(&self) -> Element<'_, Message> {
-        widget::column::with_capacity(2)
-            .spacing(cosmic::theme::spacing().space_m)
-            .push(widget::text(fl!("recently-deleted-description")))
-            .push(
-                widget::scrollable(keyed_column(
-                    //(0..=100).map(|i| (i, text!("Item {i}").into())),
-                    self.notes.get_all_deleted_notes().map(|(note_id, note)| {
-                        (*note_id, self.build_note_list_item(*note_id, note))
-                    }),
-                ))
-                .width(Length::Fill)
-                .height(Length::Fill),
-            )
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
-    }
-
-    #[allow(clippy::too_many_lines)]
-    fn build_sticky_window_view<'a>(
-        &'a self,
-        id: Id,
-        window_context: &'a WindowContext,
-    ) -> Element<'a, Message> {
-        if let Some(edit_context) = self.try_get_edit_context(id) {
-            let note_toolbar = widget::row::with_capacity(1).push(
-                self.icons
-                    .edit()
-                    .apply(widget::button::icon)
-                    .icon_size(self.config.toolbar_icon_size)
-                    .on_press(Message::NoteEdit(id, false))
-                    .width(Length::Shrink),
-            );
-
-            let note_content = widget::container(
-                widget::text_editor(&edit_context.content)
-                    .on_action(Message::Edit)
-                    .height(Length::Fill),
-            )
-            .width(Length::Fill)
-            .height(Length::Fill);
-
-            widget::column::with_capacity(2)
-                .push(note_toolbar)
-                .push(note_content)
-                .into()
-        } else {
-            let is_locked = self
-                .notes
-                .try_get_note(&window_context.note_id)
-                .is_some_and(NoteData::is_locked);
-
-            let mut note_toolbar = widget::row::with_capacity(7)
-                .spacing(cosmic::theme::spacing().space_s)
-                .push(
-                    if is_locked {
-                        self.icons.unlock()
-                    } else {
-                        self.icons.lock()
-                    }
-                    .apply(widget::button::icon)
-                    .icon_size(self.config.toolbar_icon_size)
-                    .on_press(Message::NoteLock(id, !is_locked))
-                    .width(Length::Shrink),
-                );
-            if !is_locked {
-                note_toolbar = note_toolbar.push(
-                    self.icons
-                        .edit()
-                        .apply(widget::button::icon)
-                        .icon_size(self.config.toolbar_icon_size)
-                        .on_press(Message::NoteEdit(id, true))
-                        .width(Length::Shrink),
-                );
-                if let Some(styles) = &window_context.select_style {
-                    // add style pick list
-                    note_toolbar = note_toolbar.push(
-                        widget::dropdown(
-                            styles,
-                            self.notes.try_get_note_style_index(&window_context.note_id),
-                            move |index| Message::NoteSyleSelected(id, index),
-                        )
-                        .placeholder(fl!("select-default-style")),
-                    );
-                } else {
-                    // add button "down"
-                    note_toolbar = note_toolbar.push(
-                        self.icons
-                            .down()
-                            .apply(widget::button::icon)
-                            .icon_size(self.config.toolbar_icon_size)
-                            .on_press(Message::NoteStyle(id))
-                            .width(Length::Shrink),
-                    );
-                }
-                note_toolbar = note_toolbar.push(
-                    self.icons
-                        .delete()
-                        .apply(widget::button::icon)
-                        .icon_size(self.config.toolbar_icon_size)
-                        .on_press(Message::NoteDelete(id))
-                        .width(Length::Shrink),
-                );
-            }
-            note_toolbar = note_toolbar
-                .push(widget::horizontal_space().width(Length::Fill))
-                .push(
-                    self.icons
-                        .create()
-                        .apply(widget::button::icon)
-                        .icon_size(self.config.toolbar_icon_size)
-                        .on_press(Message::NoteNew)
-                        .width(Length::Shrink),
-                );
-
-            let note_content = widget::column::with_capacity(2)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .push(widget::text(
-                    if let Some(note) = self.notes.try_get_note(&window_context.note_id) {
-                        note.get_content()
-                    } else {
-                        INVISIBLE_TEXT
-                    },
-                ));
-
-            widget::column::with_capacity(2)
-                .push(note_toolbar)
-                .push(note_content)
-                .into()
-        }
-    }
-
-    fn build_note_list_item<'a>(&self, note_id: Uuid, note: &'a NoteData) -> Element<'a, Message> {
-        let child = widget::row::with_capacity(2)
-            .spacing(cosmic::theme::spacing().space_s)
-            .width(Length::Fill)
-            .push(widget::text(note.get_title()).width(Length::Fill))
-            .push(
-                self.icons
-                    .undo()
-                    .apply(widget::button::icon)
-                    .icon_size(self.config.toolbar_icon_size)
-                    .on_press(Message::NoteRestore(note_id))
-                    .width(Length::Shrink),
-            )
-            .into();
-        if let Some(note_bg) = self
-            .notes
-            .try_get_note_style(note_id)
-            .map(|style| style.bgcolor)
-        {
-            Self::with_background(child, note_bg)
-        } else {
-            child
-        }
-    }
-
-    fn with_background(child: Element<'_, Message>, bgcolor: Color) -> Element<'_, Message> {
-        widget::container(child)
-            .class(cosmic::style::Container::custom(move |theme: &Theme| {
-                let cosmic = theme.cosmic();
-                iced::widget::container::Style {
-                    icon_color: Some(Color::from(cosmic.background.on)),
-                    text_color: Some(Color::from(cosmic.background.on)),
-                    background: Some(iced::Background::Color(bgcolor)),
-                    border: iced::Border {
-                        radius: cosmic.corner_radii.radius_s.into(),
-                        ..Default::default()
-                    },
-                    shadow: iced::Shadow::default(),
-                }
-            }))
-            .padding(cosmic::theme::spacing().space_xs)
             .into()
     }
 }

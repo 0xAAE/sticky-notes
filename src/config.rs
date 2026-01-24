@@ -5,7 +5,7 @@ use cosmic::{
     iced::Size,
 };
 
-use crate::utils::to_f32;
+use crate::app::to_f32;
 
 const DEF_DATA_FILE: &str = ".config/indicator-stickynotes";
 const ICON_SIZE: u16 = 16;

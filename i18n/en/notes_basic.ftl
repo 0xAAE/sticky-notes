@@ -17,3 +17,4 @@ recently-deleted-description = To restore any note press button on the right
 select-default-style = New sticky window style:
 repository = Repository
 git-description = Git commit {$hash} on {$date}
+problem-text = Internal error: see errors in termminial or system log for details
