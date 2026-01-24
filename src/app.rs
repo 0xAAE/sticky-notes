@@ -6,7 +6,7 @@ use crate::{
     app::styles_view::build_styles_list_view,
     config::Config,
     fl, icons,
-    notes::{NoteData, NotesCollection},
+    notes::{NoteData, NoteStyle, NotesCollection},
 };
 use cosmic::prelude::*;
 use cosmic::{
@@ -20,7 +20,7 @@ use cosmic::{
     },
     widget::{self, menu},
 };
-use edit_style::edit_style_dialog;
+use edit_style::EditStyleDialog;
 use restore_view::build_restore_view;
 use sticky_window::StickyWindow;
 use utils::with_background;
@@ -50,7 +50,7 @@ pub struct AppModel {
     cursor_window: Option<Id>,
     restore_window: Option<Id>,
     // optional currently edit style defined by its id:
-    edit_style_active: Option<Uuid>,
+    edit_style_dialog: Option<EditStyleDialog>,
     #[cfg(not(feature = "xdg_icons"))]
     icons: icons::IconSet,
     #[cfg(feature = "xdg_icons")]
@@ -96,10 +96,11 @@ pub enum Message {
     NoteDelete(Id),              // delete note
     NoteRestore(Uuid),           // restore note
     // styles view button actions
-    StyleEdit(Uuid),   // edit style by style_id
-    StyleDelete(Uuid), // delete style by style_id
-    EditStyleUpdate,   // Ok was pressed in edit style dialog
-    EditStyleCancel,   // Cancel was pressed in edit style dialog
+    StyleEdit(Uuid),        // edit style by style_id
+    StyleDelete(Uuid),      // delete style by style_id
+    EditStyleUpdate,        // Ok was pressed in edit style dialog
+    EditStyleCancel,        // Cancel was pressed in edit style dialog
+    InputStyleName(String), // update currently edited style name
 }
 
 /// Create a COSMIC application from the app model
@@ -156,7 +157,7 @@ impl cosmic::Application for AppModel {
             windows: HashMap::new(),
             cursor_window: None,
             restore_window: None,
-            edit_style_active: None,
+            edit_style_dialog: None,
             icons: icons::IconSet::new(),
         };
 
@@ -245,7 +246,7 @@ impl cosmic::Application for AppModel {
             let note_bg = self
                 .notes
                 .try_get_note_style(sticky_window.get_note_id())
-                .map_or(Color::WHITE, |style| style.bgcolor);
+                .map_or(Color::WHITE, NoteStyle::get_background_color);
             let window_content = sticky_window.build_view(id, &self.notes, &self.icons);
             let window_view = with_background(window_content, note_bg);
             iced::widget::column![window_view].into()
@@ -412,7 +413,7 @@ impl cosmic::Application for AppModel {
                 if let Some(sticky_window) = self.windows.get_mut(&window_id)
                     && let Err(e) = sticky_window.do_edit_action(action)
                 {
-                    eprint!("failed perform edit: {e}");
+                    eprintln!("failed perform edit: {e}");
                 }
             }
 
@@ -469,31 +470,44 @@ impl cosmic::Application for AppModel {
             }
 
             Message::StyleEdit(style_id) => {
-                println!("edit style {style_id}");
-                self.edit_style_active = Some(style_id);
+                if let Some(style) = self.notes.try_get_style(&style_id) {
+                    self.edit_style_dialog = Some(EditStyleDialog::new(style_id, style));
+                }
             }
 
             Message::StyleDelete(style_id) => {
+                //TODO: implement style deleting
                 println!("delete style {style_id}");
             }
 
             Message::EditStyleUpdate => {
-                println!("edit style update");
-                self.edit_style_active = None;
+                if let Some(dialog) = self.edit_style_dialog.take() {
+                    self.on_style_updated(
+                        dialog.get_id(),
+                        dialog.get_name(),
+                        dialog.get_font_name(),
+                        dialog.get_background_color(),
+                    );
+                }
             }
 
             Message::EditStyleCancel => {
-                println!("edit style cancel");
-                self.edit_style_active = None;
+                self.edit_style_dialog = None;
+            }
+
+            Message::InputStyleName(value) => {
+                if let Some(dialog) = &mut self.edit_style_dialog {
+                    dialog.update_name(value);
+                }
             }
         }
         Task::none()
     }
 
     fn dialog(&self) -> Option<Element<'_, Self::Message>> {
-        self.edit_style_active
-            .and_then(|style_id| self.notes.try_get_style(&style_id))
-            .map(|style| edit_style_dialog(style))
+        self.edit_style_dialog
+            .as_ref()
+            .map(|dialog| dialog.build_dialog_view())
     }
 
     fn on_app_exit(&mut self) -> Option<Self::Message> {
@@ -674,6 +688,16 @@ impl AppModel {
             window::close(id)
         } else {
             Task::none()
+        }
+    }
+
+    fn on_style_updated(&mut self, style_id: Uuid, name: &str, font_name: &str, bgcolor: Color) {
+        if let Some(style) = self.notes.try_get_style_mut(&style_id) {
+            style.set_name(name);
+            style.set_font_name(font_name);
+            style.set_background_color(bgcolor);
+        } else {
+            eprintln!("failed to update style {style_id}: style not found");
         }
     }
 

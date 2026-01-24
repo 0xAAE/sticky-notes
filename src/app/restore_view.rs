@@ -3,7 +3,7 @@ use crate::{
     app::Message,
     fl,
     icons::IconSet,
-    notes::{NoteData, NotesCollection},
+    notes::{NoteData, NoteStyle, NotesCollection},
 };
 use cosmic::prelude::*;
 use cosmic::{
@@ -30,7 +30,7 @@ pub fn build_restore_view<'a>(
                             note,
                             notes
                                 .try_get_note_style(*note_id)
-                                .map(|style| style.bgcolor),
+                                .map(NoteStyle::get_background_color),
                             icons,
                             icon_size,
                         ),

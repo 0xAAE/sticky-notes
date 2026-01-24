@@ -76,11 +76,7 @@ impl From<StickyNotesDatabase> for NotesCollection {
                 let rgb = Rgb::from_color_unclamped(hsv).into_components();
                 (
                     id,
-                    NoteStyle {
-                        name: cat.name,
-                        font_name: cat.font,
-                        bgcolor: Color::from_rgb(rgb.0, rgb.1, rgb.2),
-                    },
+                    NoteStyle::new(cat.name, cat.font, Color::from_rgb(rgb.0, rgb.1, rgb.2)),
                 )
             })
             .collect();
@@ -119,12 +115,12 @@ impl From<NotesCollection> for StickyNotesDatabase {
             .styles
             .into_iter()
             .map(|(style_id, style)| {
-                let hsv = Hsv::from_color_unclamped(Srgb::from(style.bgcolor));
+                let hsv = Hsv::from_color_unclamped(Srgb::from(style.get_background_color()));
                 (
                     style_id,
                     StickyNotesCategoryProperties {
-                        name: style.name.clone(),
-                        font: style.font_name.clone(),
+                        name: style.get_name().to_string(),
+                        font: style.get_font_name().to_string(),
                         bgcolor_hsv: vec![hsv.hue.into(), hsv.saturation, hsv.value],
                     },
                 )
@@ -174,7 +170,9 @@ impl NotesCollection {
     // Collection as itself
 
     pub fn is_unsaved(&self) -> bool {
-        self.is_dirty || self.notes.iter().any(|(_, note)| note.is_changed())
+        self.is_dirty
+            || self.notes.values().any(NoteData::is_changed)
+            || self.styles.values().any(NoteStyle::is_changed)
     }
 
     // test if collection looks like instantiated by default()
@@ -184,6 +182,7 @@ impl NotesCollection {
 
     pub fn commit_changes(&mut self) {
         self.notes.values_mut().for_each(NoteData::commit);
+        self.styles.values_mut().for_each(NoteStyle::commit);
         self.is_dirty = false;
     }
 
@@ -205,7 +204,7 @@ impl NotesCollection {
     where
         F: Fn(&mut NoteData),
     {
-        self.notes.iter_mut().for_each(|(_, note)| f(note));
+        self.notes.values_mut().for_each(f);
     }
 
     pub fn iter_notes(&self) -> Iter<'_, Uuid, NoteData> {
@@ -250,8 +249,9 @@ impl NotesCollection {
     }
 
     pub fn get_style_names(&self) -> Vec<String> {
-        self.iter_styles()
-            .map(|(_id, style)| style.name.clone())
+        self.styles
+            .values()
+            .map(|style| style.get_name().to_string())
             .collect()
     }
 
@@ -260,24 +260,19 @@ impl NotesCollection {
     }
 
     pub fn try_get_default_style_index(&self) -> Option<usize> {
-        self.try_get_default_style()
-            .map(|style| &style.name)
-            .and_then(|name| {
-                self.styles
-                    .iter()
-                    .enumerate()
-                    .find(|(_, (_, v))| &v.name == name)
-                    .map(|(i, _)| i)
-            })
+        self.styles
+            .keys()
+            .enumerate()
+            .find_map(|(index, style_id)| (*style_id == self.default_style).then_some(index))
     }
 
     pub fn try_set_default_style_by_index(&mut self, style_index: usize) -> bool {
-        self.iter_styles()
+        self.styles
+            .keys()
             .nth(style_index)
-            .map(|(id, _)| *id)
             .map(|id| {
-                if self.default_style != id {
-                    self.default_style = id;
+                if self.default_style != *id {
+                    self.default_style = *id;
                     self.is_dirty = true;
                 }
             })
@@ -288,6 +283,17 @@ impl NotesCollection {
         self.styles.get(style_id)
     }
 
+    pub fn try_get_style_mut(&mut self, style_id: &Uuid) -> Option<&mut NoteStyle> {
+        self.styles.get_mut(style_id)
+    }
+
+    pub fn for_each_style_mut<F>(&mut self, f: F)
+    where
+        F: Fn(&mut NoteStyle),
+    {
+        self.styles.values_mut().for_each(f);
+    }
+
     // operations with particular note style
 
     pub fn try_get_note_style(&self, note_id: Uuid) -> Option<&NoteStyle> {
@@ -296,9 +302,11 @@ impl NotesCollection {
             .and_then(|note| self.try_get_style(&note.style()))
             // otherwise search in deleted notes
             .or_else(|| {
-                self.iter_deleted_notes()
-                    .find(|(id, _)| **id == note_id)
-                    .and_then(|(_, note)| self.try_get_style(&note.style()))
+                self.iter_deleted_notes().find_map(|(id, note)| {
+                    (*id == note_id)
+                        .then_some(self.try_get_style(&note.style()))
+                        .flatten()
+                })
             })
             // at the end return default style
             .or_else(|| self.try_get_default_style())
@@ -306,15 +314,15 @@ impl NotesCollection {
 
     pub fn try_get_note_style_index(&self, note_id: Uuid) -> Option<usize> {
         self.try_get_note(&note_id).and_then(|note| {
-            self.iter_styles()
+            self.styles
+                .keys()
                 .enumerate()
-                .find(|(_, (id, _))| **id == note.style())
-                .map(|(index, (_, _))| index)
+                .find_map(|(index, id)| (*id == note.style()).then_some(index))
         })
     }
 
     pub fn try_set_note_style_by_index(&mut self, note_id: Uuid, style_index: usize) -> bool {
-        if let Some(style_id) = self.iter_styles().nth(style_index).map(|(id, _)| *id) {
+        if let Some(style_id) = self.styles.keys().nth(style_index).copied() {
             self.try_get_note_mut(&note_id)
                 .map(|note| note.set_style(style_id))
                 .is_some()

@@ -49,7 +49,8 @@ fn build_style_list_item<'a>(
         .push(
             widget::text(format!(
                 "{}, preferred font {}",
-                &style.name, &style.font_name
+                style.get_name(),
+                style.get_font_name()
             ))
             .width(Length::Fill),
         )
@@ -70,5 +71,5 @@ fn build_style_list_item<'a>(
                 .width(Length::Shrink),
         )
         .into();
-    with_background(child, style.bgcolor)
+    with_background(child, style.get_background_color())
 }
