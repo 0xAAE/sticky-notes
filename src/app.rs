@@ -101,6 +101,7 @@ pub enum Message {
     EditStyleUpdate,        // Ok was pressed in edit style dialog
     EditStyleCancel,        // Cancel was pressed in edit style dialog
     InputStyleName(String), // update currently edited style name
+    ColorUpdate(widget::color_picker::ColorPickerUpdate),
 }
 
 /// Create a COSMIC application from the app model
@@ -500,6 +501,12 @@ impl cosmic::Application for AppModel {
                     dialog.update_name(value);
                 }
             }
+
+            Message::ColorUpdate(event) => {
+                if let Some(dialog) = &mut self.edit_style_dialog {
+                    return dialog.on_color_picker_update(event);
+                }
+            }
         }
         Task::none()
     }
@@ -520,6 +527,7 @@ impl cosmic::Application for AppModel {
         // warn if deleted notes were dropped
         let count_deleted = self.notes.iter_deleted_notes().count();
         if count_deleted > 0 {
+            //TODO: what about saving deleted notes too? Maybe with their TTLs
             println!("Finally drop deleted notes on exit: {count_deleted}");
         }
         None
@@ -630,7 +638,7 @@ impl AppModel {
         if let Some(note) = self.try_get_note_mut(window_id) {
             note.set_locking(is_on);
         } else {
-            println!("{window_id}: note is not found to change locking");
+            eprintln!("{window_id}: note is not found to change locking");
         }
     }
 

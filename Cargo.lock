@@ -3165,6 +3165,7 @@ dependencies = [
  "i18n-embed-fl",
  "libcosmic",
  "open",
+ "palette",
  "rust-embed",
  "serde",
  "serde-json-fmt",
