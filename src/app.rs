@@ -623,8 +623,9 @@ impl AppModel {
         let note_id = self.notes.new_note();
         if let Some(note) = self.notes.try_get_note_mut(&note_id) {
             let (window_id, task) = Self::spawn_sticky_window(&note_id, note);
-            self.on_start_edit(window_id);
-            task
+            task.chain(
+                cosmic::Task::done(Message::NoteEdit(window_id, true)).map(cosmic::Action::from),
+            )
         } else {
             Task::none()
         }
