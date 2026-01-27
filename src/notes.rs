@@ -15,4 +15,3 @@ const NO_CONTENT: &str = "click inside to begin edit the content";
 const MAX_TITLE_CHARS: usize = 12;
 const DEF_NOTE_WIDTH: usize = 400;
 const DEF_NOTE_HEIGHT: usize = 300;
-pub const INVISIBLE_TEXT: &str = "Internal error: see error log (stderr) for details";

@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Notes Basic
-Comment=BAsic implementation of sticky notes
+Comment=Basic implementation of sticky notes
 Type=Application
 Icon=com.github.aae.notes
 Exec=notes-basic %F
