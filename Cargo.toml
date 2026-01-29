@@ -54,7 +54,7 @@ features = [
     # Add Wayland support to winit
     "wayland",
     # It is not recommended for applets: GPU-accelerated rendering
-    # "wgpu",
+    "wgpu",
     # Uncomment if markdwon is required
     #"markdown"
 ]
