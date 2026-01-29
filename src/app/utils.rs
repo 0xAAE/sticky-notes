@@ -4,6 +4,7 @@ use cosmic::{
     iced::{self, Color},
     widget,
 };
+use palette::Srgba;
 
 #[inline]
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -17,13 +18,18 @@ pub const fn to_f32(v: usize) -> f32 {
     v as f32
 }
 
+#[inline]
+pub const fn text_color() -> Srgba {
+    Srgba::new(0.08, 0.08, 0.08, 1.0)
+}
+
 pub fn with_background(child: Element<'_, Message>, bgcolor: Color) -> Element<'_, Message> {
     widget::container(child)
         .class(cosmic::style::Container::custom(move |theme: &Theme| {
             let cosmic = theme.cosmic();
             iced::widget::container::Style {
-                icon_color: Some(Color::from(cosmic.background.on)),
-                text_color: Some(Color::from(cosmic.background.on)),
+                icon_color: Some(Color::from(cosmic.primary.on)),
+                text_color: Some(Color::from(text_color())),
                 background: Some(iced::Background::Color(bgcolor)),
                 border: iced::Border {
                     radius: cosmic.corner_radii.radius_s.into(),

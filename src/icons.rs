@@ -3,6 +3,7 @@
 pub mod inner {
     use cosmic::widget::icon::{self, Handle};
 
+    const ICON_NOTES: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/notes.svg");
     const ICON_UNLOCKED: &[u8] =
         include_bytes!("../resources/icons/hicolor/scalable/changes-allow-symbolic.svg");
     const ICON_LOCKED: &[u8] =
@@ -19,6 +20,7 @@ pub mod inner {
         include_bytes!("../resources/icons/hicolor/scalable/edit-undo-symbolic.svg");
 
     pub struct IconSet {
+        notes: Handle,
         lock: Handle,
         unlock: Handle,
         edit: Handle,
@@ -31,6 +33,7 @@ pub mod inner {
     impl IconSet {
         pub fn new() -> Self {
             Self {
+                notes: icon::from_svg_bytes(ICON_NOTES),
                 lock: icon::from_svg_bytes(ICON_UNLOCKED),
                 unlock: icon::from_svg_bytes(ICON_LOCKED),
                 edit: icon::from_svg_bytes(ICON_EDIT),
@@ -39,6 +42,10 @@ pub mod inner {
                 delete: icon::from_svg_bytes(ICON_DELETE),
                 undo: icon::from_svg_bytes(ICON_UNDO),
             }
+        }
+
+        pub fn notes(&self) -> Handle {
+            self.notes.clone()
         }
 
         pub fn lock(&self) -> Handle {
@@ -76,6 +83,8 @@ pub mod inner {
 mod inner {
     use cosmic::widget::icon::{self, Handle, Named};
 
+    const ICON_NOTES: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/notes.svg");
+
     pub const XDG_UNLOCKED: &str = "changes-allow-symbolic";
     pub const XDG_LOCKED: &str = "changes-prevent-symbolic";
     pub const XDG_NEW: &str = "document-new-symbolic";
@@ -85,6 +94,7 @@ mod inner {
     pub const XDG_UNDO: &str = "edit-undo-symbolic";
 
     pub struct IconSet {
+        notes: Handle,
         lock: Named,
         unlock: Named,
         edit: Named,
@@ -97,6 +107,7 @@ mod inner {
     impl IconSet {
         pub fn new() -> Self {
             Self {
+                notes: icon::from_svg_bytes(ICON_NOTES),
                 lock: icon::from_name(XDG_UNLOCKED),
                 unlock: icon::from_name(XDG_LOCKED),
                 edit: icon::from_name(XDG_EDIT),
@@ -105,6 +116,10 @@ mod inner {
                 delete: icon::from_name(XDG_DELETE),
                 undo: icon::from_name(XDG_UNDO),
             }
+        }
+
+        pub fn notes(&self) -> Handle {
+            self.notes.clone()
         }
 
         pub fn lock(&self) -> Handle {

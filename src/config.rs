@@ -17,6 +17,8 @@ pub struct Config {
     pub notes: String,
     pub restore_notes_width: usize,
     pub restore_notes_heigth: usize,
+    pub edit_style_width: usize,
+    pub edit_style_heigth: usize,
     pub toolbar_icon_size: u16,
 }
 
@@ -33,6 +35,8 @@ impl Default for Config {
             notes: String::new(),
             restore_notes_width: 480,
             restore_notes_heigth: 400,
+            edit_style_width: 480,
+            edit_style_heigth: 800,
             toolbar_icon_size: ICON_SIZE,
         }
     }
@@ -43,6 +47,13 @@ impl Config {
         Size::new(
             to_f32(self.restore_notes_width),
             to_f32(self.restore_notes_heigth),
+        )
+    }
+
+    pub fn edit_style_size(&self) -> Size {
+        Size::new(
+            to_f32(self.edit_style_width),
+            to_f32(self.edit_style_heigth),
         )
     }
 }

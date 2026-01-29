@@ -19,7 +19,7 @@ pub fn build_restore_view<'a>(
 ) -> Element<'a, Message> {
     widget::column::with_capacity(2)
         .spacing(cosmic::theme::spacing().space_m)
-        .push(widget::text(fl!("styles-list-description")))
+        .push(widget::text(fl!("recently-deleted-description")))
         .push(
             widget::scrollable(keyed_column(notes.iter_deleted_notes().map(
                 |(note_id, note)| {

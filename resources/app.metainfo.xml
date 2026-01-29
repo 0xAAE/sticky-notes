@@ -6,7 +6,7 @@
   <name>Notes Basic</name>
   <summary>Basic implementation of sticky notes</summary>
   <icon type="remote" width="64" height="64" scale="1">
-    https://github.com/0xAAE/notes-basic/raw/main/resources/icons/hicolor/scalable/apps/icon.svg
+    https://github.com/0xAAE/notes-basic/raw/main/resources/icons/hicolor/scalable/notes.svg
   </icon>
   <url type="vcs-browser">https://github.com/0xAAE/notes-basic</url>
   <launchable type="desktop-id">com.github.aae.notes.desktop</launchable>
