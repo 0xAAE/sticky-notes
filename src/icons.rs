@@ -1,3 +1,4 @@
+use cosmic::widget::icon::Handle;
 // embedded SVG bytes
 #[cfg(not(feature = "xdg_icons"))]
 pub mod inner {
@@ -5,29 +6,31 @@ pub mod inner {
 
     const ICON_NOTES: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/notes.svg");
     const ICON_UNLOCKED: &[u8] =
-        include_bytes!("../resources/icons/hicolor/scalable/changes-allow-symbolic.svg");
+        include_bytes!("../resources/icons/mono/scalable/changes-allow-symbolic.svg");
     const ICON_LOCKED: &[u8] =
-        include_bytes!("../resources/icons/hicolor/scalable/changes-prevent-symbolic.svg");
+        include_bytes!("../resources/icons/mono/scalable/changes-prevent-symbolic.svg");
     const ICON_NEW: &[u8] =
-        include_bytes!("../resources/icons/hicolor/scalable/document-new-symbolic.svg");
+        include_bytes!("../resources/icons/mono/scalable/document-new-symbolic.svg");
     const ICON_DELETE: &[u8] =
-        include_bytes!("../resources/icons/hicolor/scalable/edit-delete-symbolic.svg");
-    const ICON_EDIT: &[u8] =
-        include_bytes!("../resources/icons/hicolor/scalable/edit-symbolic.svg");
+        include_bytes!("../resources/icons/mono/scalable/edit-delete-symbolic.svg");
+    const ICON_EDIT: &[u8] = include_bytes!("../resources/icons/mono/scalable/edit-symbolic.svg");
     const ICON_DOWN: &[u8] =
-        include_bytes!("../resources/icons/hicolor/scalable/pan-down-symbolic.svg");
+        include_bytes!("../resources/icons/mono/scalable/pan-down-symbolic.svg");
     const ICON_UNDO: &[u8] =
-        include_bytes!("../resources/icons/hicolor/scalable/edit-undo-symbolic.svg");
+        include_bytes!("../resources/icons/mono/scalable/edit-undo-symbolic.svg");
+    const ICON_CHECKED: &[u8] =
+        include_bytes!("../resources/icons/mono/scalable/checkbox-checked-symbolic.svg");
 
     pub struct IconSet {
-        notes: Handle,
-        lock: Handle,
-        unlock: Handle,
-        edit: Handle,
-        down: Handle,
-        create: Handle,
-        delete: Handle,
-        undo: Handle,
+        pub notes: Handle,
+        pub lock: Handle,
+        pub unlock: Handle,
+        pub edit: Handle,
+        pub down: Handle,
+        pub create: Handle,
+        pub delete: Handle,
+        pub undo: Handle,
+        pub checked: Handle,
     }
 
     impl IconSet {
@@ -41,39 +44,8 @@ pub mod inner {
                 create: icon::from_svg_bytes(ICON_NEW),
                 delete: icon::from_svg_bytes(ICON_DELETE),
                 undo: icon::from_svg_bytes(ICON_UNDO),
+                checked: icon::from_svg_bytes(ICON_CHECKED),
             }
-        }
-
-        pub fn notes(&self) -> Handle {
-            self.notes.clone()
-        }
-
-        pub fn lock(&self) -> Handle {
-            self.lock.clone()
-        }
-
-        pub fn unlock(&self) -> Handle {
-            self.unlock.clone()
-        }
-
-        pub fn edit(&self) -> Handle {
-            self.edit.clone()
-        }
-
-        pub fn down(&self) -> Handle {
-            self.down.clone()
-        }
-
-        pub fn create(&self) -> Handle {
-            self.create.clone()
-        }
-
-        pub fn delete(&self) -> Handle {
-            self.delete.clone()
-        }
-
-        pub fn undo(&self) -> Handle {
-            self.undo.clone()
         }
     }
 }
@@ -81,7 +53,7 @@ pub mod inner {
 // system wide installed icons
 #[cfg(feature = "xdg_icons")]
 mod inner {
-    use cosmic::widget::icon::{self, Handle, Named};
+    use cosmic::widget::icon::{self, Handle};
 
     const ICON_NOTES: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/notes.svg");
 
@@ -92,64 +64,81 @@ mod inner {
     pub const XDG_EDIT: &str = "edit-symbolic";
     pub const XDG_DOWN: &str = "pan-down-symbolic";
     pub const XDG_UNDO: &str = "edit-undo-symbolic";
+    pub const XDG_CHECKED: &str = "checkbox-checked-symbolic";
 
     pub struct IconSet {
-        notes: Handle,
-        lock: Named,
-        unlock: Named,
-        edit: Named,
-        down: Named,
-        create: Named,
-        delete: Named,
-        undo: Named,
+        pub notes: Handle,
+        pub lock: Handle,
+        pub unlock: Handle,
+        pub edit: Handle,
+        pub down: Handle,
+        pub create: Handle,
+        pub delete: Handle,
+        pub undo: Handle,
+        pub checked: Handle,
     }
 
     impl IconSet {
         pub fn new() -> Self {
             Self {
                 notes: icon::from_svg_bytes(ICON_NOTES),
-                lock: icon::from_name(XDG_UNLOCKED),
-                unlock: icon::from_name(XDG_LOCKED),
-                edit: icon::from_name(XDG_EDIT),
-                down: icon::from_name(XDG_DOWN),
-                create: icon::from_name(XDG_NEW),
-                delete: icon::from_name(XDG_DELETE),
-                undo: icon::from_name(XDG_UNDO),
+                lock: icon::from_name(XDG_UNLOCKED).into(),
+                unlock: icon::from_name(XDG_LOCKED).into(),
+                edit: icon::from_name(XDG_EDIT).into(),
+                down: icon::from_name(XDG_DOWN).into(),
+                create: icon::from_name(XDG_NEW).into(),
+                delete: icon::from_name(XDG_DELETE).into(),
+                undo: icon::from_name(XDG_UNDO).into(),
+                checked: icon::from_name(XDG_CHECKED).into(),
             }
-        }
-
-        pub fn notes(&self) -> Handle {
-            self.notes.clone()
-        }
-
-        pub fn lock(&self) -> Handle {
-            self.lock.clone().into()
-        }
-
-        pub fn unlock(&self) -> Handle {
-            self.unlock.clone().into()
-        }
-
-        pub fn edit(&self) -> Handle {
-            self.edit.clone().into()
-        }
-
-        pub fn down(&self) -> Handle {
-            self.down.clone().into()
-        }
-
-        pub fn create(&self) -> Handle {
-            self.create.clone().into()
-        }
-
-        pub fn delete(&self) -> Handle {
-            self.delete.clone().into()
-        }
-
-        pub fn undo(&self) -> Handle {
-            self.undo.clone().into()
         }
     }
 }
 
-pub use inner::IconSet;
+pub struct IconSet {
+    inner: inner::IconSet,
+}
+
+impl IconSet {
+    pub fn new() -> Self {
+        Self {
+            inner: inner::IconSet::new(),
+        }
+    }
+
+    pub fn notes(&self) -> Handle {
+        self.inner.notes.clone()
+    }
+
+    pub fn lock(&self) -> Handle {
+        self.inner.lock.clone()
+    }
+
+    pub fn unlock(&self) -> Handle {
+        self.inner.unlock.clone()
+    }
+
+    pub fn edit(&self) -> Handle {
+        self.inner.edit.clone()
+    }
+
+    pub fn down(&self) -> Handle {
+        self.inner.down.clone()
+    }
+
+    pub fn create(&self) -> Handle {
+        self.inner.create.clone()
+    }
+
+    pub fn delete(&self) -> Handle {
+        self.inner.delete.clone()
+    }
+
+    pub fn undo(&self) -> Handle {
+        self.inner.undo.clone()
+    }
+
+    pub fn checked(&self) -> Handle {
+        self.inner.checked.clone()
+    }
+}
