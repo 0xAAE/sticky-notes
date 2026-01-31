@@ -84,7 +84,7 @@ impl StickyWindow {
         if let Some(edit_context) = &self.edit_context {
             let note_toolbar = widget::row::with_capacity(1).push(
                 icons
-                    .edit()
+                    .checked()
                     .apply(widget::button::icon)
                     .icon_size(self.icon_size)
                     .on_press(Message::NoteEdit(window_id, false))
