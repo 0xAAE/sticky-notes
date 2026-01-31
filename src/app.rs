@@ -545,6 +545,18 @@ impl cosmic::Application for AppModel {
         Task::none()
     }
 
+    /// Called when a window is resized.
+    fn on_window_resize(&mut self, id: window::Id, width: f32, height: f32) {
+        if self.sticky_windows.contains_key(&id) {
+            match self.try_get_note_mut(id) {
+                Ok(note) => {
+                    note.set_size(to_usize(width), to_usize(height));
+                }
+                Err(e) => eprintln!("Failed to update sticky window size: {e}"),
+            }
+        }
+    }
+
     fn style(&self) -> Option<cosmic::iced_runtime::Appearance> {
         Some(applet::style())
     }
@@ -556,7 +568,7 @@ impl AppModel {
         if self.notes.is_unsaved()
             && let Err(e) = self.save_notes()
         {
-            eprintln!("Failed saving notes on exit: {e}");
+                eprintln!("Failed saving notes on exit: {e}");
         }
         // warn if deleted notes were dropped
         let count_deleted = self.notes.iter_deleted_notes().count();
@@ -824,16 +836,7 @@ impl AppModel {
         event: &WindowEvent,
     ) -> Task<cosmic::Action<<AppModel as cosmic::Application>::Message>> {
         match event {
-            WindowEvent::Resized(size) => {
-                if self.sticky_windows.contains_key(&id) {
-                    match self.try_get_note_mut(id) {
-                        Ok(note) => {
-                            note.set_size(to_usize(size.width), to_usize(size.height));
-                        }
-                        Err(e) => eprintln!("Failed to update sticky window size: {e}"),
-                    }
-                }
-            }
+            // WindowEvent::Resized(size) => is handled by on_window_resize() override
             WindowEvent::Moved(point) => {
                 if self.sticky_windows.contains_key(&id) {
                     match self.try_get_note_mut(id) {
