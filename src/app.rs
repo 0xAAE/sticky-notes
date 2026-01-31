@@ -409,6 +409,9 @@ impl cosmic::Application for AppModel {
                     id,
                     StickyWindow::new(note_id, self.config.toolbar_icon_size),
                 );
+                if let Ok(note) = self.notes.try_get_note(&note_id) {
+                    return self.set_window_title(note.get_title().to_string(), id);
+                }
             }
 
             Message::RestoreWindowCreated(id) => {
