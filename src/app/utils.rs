@@ -28,7 +28,7 @@ pub fn with_background(child: Element<'_, Message>, bgcolor: Color) -> Element<'
         .class(cosmic::style::Container::custom(move |theme: &Theme| {
             let cosmic = theme.cosmic();
             iced::widget::container::Style {
-                icon_color: Some(Color::from(cosmic.primary.on)),
+                icon_color: Some(Color::from(text_color())),
                 text_color: Some(Color::from(text_color())),
                 background: Some(iced::Background::Color(bgcolor)),
                 border: iced::Border {
