@@ -579,10 +579,14 @@ impl cosmic::Application for AppModel {
 impl AppModel {
     fn on_quit(&mut self) {
         // save changes if any to persistent storage
-        if self.notes.is_unsaved()
-            && let Err(e) = self.save_notes()
-        {
+        if self.notes.is_unsaved() {
+            if let Err(e) = self.save_notes() {
                 eprintln!("Failed saving notes on exit: {e}");
+            } else {
+                println!("Notes collection was changed, save");
+            }
+        } else {
+            println!("Notes collection is unchanged, skip saving");
         }
         // warn if deleted notes were dropped
         let count_deleted = self.notes.iter_deleted_notes().count();
