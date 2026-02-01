@@ -4,7 +4,7 @@ use cosmic::widget::icon::Handle;
 pub mod inner {
     use cosmic::widget::icon::{self, Handle};
 
-    const ICON_NOTES: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/notes.svg");
+    const ICON_NOTES: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/notes.svg");
     const ICON_UNLOCKED: &[u8] =
         include_bytes!("../resources/icons/mono/scalable/changes-allow-symbolic.svg");
     const ICON_LOCKED: &[u8] =
@@ -55,7 +55,7 @@ pub mod inner {
 mod inner {
     use cosmic::widget::icon::{self, Handle};
 
-    const ICON_NOTES: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/notes.svg");
+    const ICON_NOTES: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/notes.svg");
 
     pub const XDG_UNLOCKED: &str = "changes-allow-symbolic";
     pub const XDG_LOCKED: &str = "changes-prevent-symbolic";
@@ -99,7 +99,14 @@ pub struct IconSet {
     inner: inner::IconSet,
 }
 
+impl Default for IconSet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IconSet {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: inner::IconSet::new(),

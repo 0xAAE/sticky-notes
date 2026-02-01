@@ -19,6 +19,7 @@ pub struct NoteData {
 }
 
 impl NoteData {
+    #[must_use]
     pub fn new(style: Uuid) -> Self {
         Self {
             content: String::new(),
@@ -32,6 +33,7 @@ impl NoteData {
         }
     }
 
+    #[must_use]
     pub fn new_from_import(src: import::Note, is_visible: bool) -> Self {
         let position: (usize, usize) = match src.properties.position.get(0..2) {
             Some([first, second]) => (*first, *second),
@@ -55,6 +57,7 @@ impl NoteData {
         }
     }
 
+    #[must_use]
     pub fn get_title(&self) -> &str {
         if self.content.is_empty() {
             EMTPY_TITLE
@@ -68,6 +71,7 @@ impl NoteData {
         }
     }
 
+    #[must_use]
     pub fn get_content(&self) -> &str {
         self.content.as_str()
     }
@@ -78,26 +82,32 @@ impl NoteData {
         self.is_dirty = true;
     }
 
+    #[must_use]
     pub fn get_modified(&self) -> DateTime<Local> {
         self.modified.into()
     }
 
+    #[must_use]
     pub fn left(&self) -> usize {
         self.position.0
     }
 
+    #[must_use]
     pub fn top(&self) -> usize {
         self.position.1
     }
 
+    #[must_use]
     pub fn width(&self) -> usize {
         self.size.0
     }
 
+    #[must_use]
     pub fn height(&self) -> usize {
         self.size.1
     }
 
+    #[must_use]
     pub fn style(&self) -> Uuid {
         self.style_id
     }
@@ -116,6 +126,7 @@ impl NoteData {
         }
     }
 
+    #[must_use]
     pub fn is_locked(&self) -> bool {
         self.is_locked
     }
@@ -127,6 +138,7 @@ impl NoteData {
         }
     }
 
+    #[must_use]
     pub fn is_visible(&self) -> bool {
         self.is_visible
     }
@@ -145,6 +157,7 @@ impl NoteData {
         }
     }
 
+    #[must_use]
     pub fn is_changed(&self) -> bool {
         self.is_dirty
     }

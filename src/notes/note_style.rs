@@ -47,6 +47,7 @@ impl Default for NoteStyle {
 }
 
 impl NoteStyle {
+    #[must_use]
     pub fn new(name: String, font_name: String, bgcolor: Color) -> Self {
         Self {
             name,
@@ -56,14 +57,17 @@ impl NoteStyle {
         }
     }
 
+    #[must_use]
     pub fn get_name(&self) -> &str {
         &self.name
     }
 
+    #[must_use]
     pub fn get_font_name(&self) -> &str {
         &self.font_name
     }
 
+    #[must_use]
     pub fn get_background_color(&self) -> Color {
         self.bgcolor
     }
@@ -89,6 +93,7 @@ impl NoteStyle {
         }
     }
 
+    #[must_use]
     pub fn is_changed(&self) -> bool {
         self.is_dirty
     }

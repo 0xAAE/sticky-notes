@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MPL-2.0
-
 use cosmic::{
     cosmic_config::{self, CosmicConfigEntry, cosmic_config_derive::CosmicConfigEntry},
     iced::Size,
@@ -43,6 +42,7 @@ impl Default for Config {
 }
 
 impl Config {
+    #[must_use]
     pub fn restore_notes_size(&self) -> Size {
         Size::new(
             to_f32(self.restore_notes_width),
@@ -50,6 +50,7 @@ impl Config {
         )
     }
 
+    #[must_use]
     pub fn edit_style_size(&self) -> Size {
         Size::new(
             to_f32(self.edit_style_width),

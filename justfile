@@ -25,8 +25,9 @@ desktop-dst := base-dir / 'share' / 'applications' / desktop
 icons-dst := base-dir / 'share' / 'icons' / 'hicolor'
 icon-svg-dst := icons-dst / 'scalable' / 'apps'
 
-# Default recipe which runs `just build-release`
-default: rund
+# Default recipe
+default:
+    env RUST_BACKTRACE=full cargo run --bin notes-service
 
 # Runs `cargo clean`
 clean:
@@ -65,7 +66,7 @@ install:
     install -Dm0755 {{ cargo-target-dir / 'release' / name }} {{bin-dst}}
     install -Dm0644 {{ 'resources' / desktop }} {{desktop-dst}}
     install -Dm0644 {{ 'resources' / appdata }} {{appdata-dst}}
-    install -Dm0644 {{ 'resources' / 'icons' / 'hicolor' / 'scalable' / 'apps' / 'icon.svg' }} {{icon-svg-dst}}
+    install -Dm0644 {{ 'resources' / 'icons' / 'hicolor' / 'scalable' / 'apps' / 'notes.svg' }} {{icon-svg-dst}}
 
 # Uninstalls installed files
 uninstall:
@@ -104,4 +105,4 @@ deb *args: (build-debug args)
 
 # Run the application for debugging purposes
 rund *args:
-    env RUST_BACKTRACE=full cargo run {{args}}
+    env RUST_BACKTRACE=full cargo run --bin {{args}}

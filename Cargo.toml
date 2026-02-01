@@ -3,8 +3,9 @@ name = "notes-basic"
 version = "0.1.0"
 edition = "2024"
 license = "MPL-2.0"
-description = "BAsic implementation of sticky notes"
+description = "Basic implementation of sticky notes"
 repository = "https://github.com/0xAAE/notes-basic"
+default-run = "notes-service"
 
 [features]
 default = []
@@ -64,3 +65,11 @@ features = [
 # libcosmic = { path = "../libcosmic" }
 # cosmic-config = { path = "../libcosmic/cosmic-config" }
 # cosmic-theme = { path = "../libcosmic/cosmic-theme" }
+
+[[bin]]
+name = "notes-applet"
+path = "src/bin/notes-applet.rs"
+
+[[bin]]
+name = "notes-service"
+path = "src/bin/notes-service.rs"

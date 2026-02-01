@@ -147,6 +147,7 @@ impl From<NotesCollection> for StickyNotesDatabase {
     }
 }
 
+#[allow(clippy::missing_errors_doc)]
 impl NotesCollection {
     // Import/export/save/load
 
@@ -185,6 +186,7 @@ impl NotesCollection {
     }
 
     // test if collection looks like instantiated by default()
+    #[must_use]
     pub fn is_default_collection(&self) -> bool {
         self.notes.len() <= 1 && self.styles.len() <= 1
     }
@@ -197,6 +199,7 @@ impl NotesCollection {
 
     // operations with notes
 
+    #[must_use]
     pub fn get_notes_count(&self) -> usize {
         self.notes.len()
     }
@@ -223,6 +226,7 @@ impl NotesCollection {
         self.notes.values_mut().for_each(f);
     }
 
+    #[must_use]
     pub fn iter_notes(&self) -> Iter<'_, Uuid, NoteData> {
         self.notes.iter()
     }
@@ -231,6 +235,7 @@ impl NotesCollection {
         self.notes.iter_mut()
     }
 
+    #[must_use]
     pub fn iter_deleted_notes(&self) -> Iter<'_, Uuid, NoteData> {
         self.deleted_notes.iter()
     }
@@ -265,14 +270,17 @@ impl NotesCollection {
 
     // operations with styles
 
+    #[must_use]
     pub fn get_styles_count(&self) -> usize {
         self.styles.len()
     }
 
+    #[must_use]
     pub fn iter_styles(&self) -> Iter<'_, Uuid, NoteStyle> {
         self.styles.iter()
     }
 
+    #[must_use]
     pub fn get_style_names(&self) -> Vec<String> {
         self.styles
             .values()
