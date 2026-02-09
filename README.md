@@ -1,6 +1,8 @@
 # Notes Basic
 
-BAsic implementation of sticky notes
+Basic implementation of [indicator-sticky-notes](https://github.com/umangv/indicator-stickynotes/tree/25d7d8ac55be70373a0664ad69cc5e186926d43b) with [pop-os/libcosmic](https://github.com/pop-os/libcosmic/tree/master) targeting the [Cosmic DE](https://github.com/pop-os/cosmic-epoch)
+
+Other details to be provided when version 0.1.0 has come
 
 ## Installation
 
