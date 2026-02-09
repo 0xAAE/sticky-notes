@@ -1,7 +1,7 @@
 # Name of the application's binary.
 name := 'notes-basic'
 # The unique ID of the application.
-appid := 'com.github.aae.notes'
+appid := 'dev.aae.notes'
 
 # Path to root file system, which defaults to `/`.
 rootdir := ''
