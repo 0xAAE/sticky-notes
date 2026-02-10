@@ -1,7 +1,7 @@
 # Name of the application's binary.
 name := 'notes-basic'
 # The unique ID of the application.
-appid := 'dev.aae.notes'
+appid := 'com.github.aae.notes'
 
 # Path to root file system, which defaults to `/`.
 rootdir := ''
@@ -102,10 +102,12 @@ tag version:
 # my manual additions
 
 # Compiles with release profile
-rel *args: (build-release '--bin' args)
+rel:
+    cargo build --release --bin notes-service --bin notes-applet
 
 # Compiles with debug profile
-dbg *args: (build-debug '--bin' args)
+dbg:
+    cargo build --bin notes-service --bin notes-applet
 
 # Run the application for debugging purposes
 rund *args:

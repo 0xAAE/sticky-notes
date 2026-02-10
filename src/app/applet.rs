@@ -53,7 +53,7 @@ impl cosmic::Application for AppletModel {
     type Message = Message;
 
     /// Unique identifier in RDNN (reverse domain name notation) format.
-    const APP_ID: &'static str = "dev.aae.notes";
+    const APP_ID: &'static str = super::APP_ID;
 
     fn core(&self) -> &cosmic::Core {
         &self.core
@@ -215,7 +215,7 @@ impl cosmic::Application for AppletModel {
                     tracing::warn!("failed sending {command}");
                 }
                 if let Command::Quit = command {
-                    tracing::info!("finish working itself");
+                    tracing::info!("finish working due to QUIT was sent to service");
                     return iced::exit();
                 }
             }
@@ -230,26 +230,18 @@ impl cosmic::Application for AppletModel {
 
 impl AppletModel {
     fn build_main_popup_view(&self) -> Element<'_, Message> {
-        // let import_available = !self.config.import_file.is_empty();
-        // let hide_avail = self.notes.iter_notes().any(|(_, note)| note.is_visible());
-        // let show_avail = self.notes.iter_notes().any(|(_, note)| !note.is_visible());
-        // let lock_avail = self.notes.iter_notes().any(|(_, note)| !note.is_locked());
-        // let restore_avail = self.notes.iter_deleted_notes().next().is_some();
-
         let save_load = column![
             applet::menu_button(widget::text::body(fl!("load")))
                 .on_press(Message::Signal(Command::LoadNotes)),
             applet::menu_button(widget::text::body(fl!("save")))
                 .on_press(Message::Signal(Command::SaveNotes)),
         ];
-
         let import_export = column![
             applet::menu_button(widget::text::body(fl!("import")))
                 .on_press(Message::Signal(Command::ImportNotes)),
             applet::menu_button(widget::text::body(fl!("export")))
                 .on_press(Message::Signal(Command::ExportNotes)),
         ];
-
         let show_lock = column![
             applet::menu_button(widget::text::body(fl!("hide-all")))
                 .on_press(Message::Signal(Command::ShowAllNotes)),
@@ -258,13 +250,13 @@ impl AppletModel {
             applet::menu_button(widget::text::body(fl!("lock-all")))
                 .on_press(Message::Signal(Command::LockAll)),
         ];
-
         let settings_restore = column![
             applet::menu_button(widget::text::body(fl!("restore-notes")))
                 .on_press(Message::Signal(Command::RestoreNotes)),
             applet::menu_button(widget::text::body(fl!("settings")))
                 .on_press(Message::Signal(Command::OpenSettings)),
-            //TODO: add "about" item
+            applet::menu_button(widget::text::body(fl!("about")))
+                .on_press(Message::Signal(Command::OpenAbout)),
             applet::menu_button(widget::text::body(fl!("quit")))
                 .on_press(Message::Signal(Command::Quit)),
         ];
@@ -326,6 +318,7 @@ impl AppletModel {
                     .await
                 {
                     tracing::error!("failed sending {command_str}: {e}");
+                    //TODO: test error before spawning service; valid candidates are: InterfaceNotFound, Failure(e)
                     tracing::info!("trying to launch notes-service binary: {}", &service_exec);
                     desktop::spawn_desktop_exec(
                         service_exec.as_str(),

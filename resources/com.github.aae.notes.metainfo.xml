@@ -3,8 +3,8 @@
   <id>com.github.0xaae.notes</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MPL-2.0</project_license>
-  <name>Notes Basic</name>
-  <summary>Basic implementation of sticky notes</summary>
+  <name>Sticky Notes</name>
+  <summary>Implementation of sticky notes for Cosmmic desktop environment</summary>
   <icon type="remote" width="64" height="64" scale="1">
     https://github.com/0xAAE/notes-basic/raw/main/resources/icons/hicolor/scalable/notes.svg
   </icon>
@@ -13,7 +13,7 @@
   <provides>
     <id>com.github.aae.notes</id>
     <binaries>
-      <binary>notes-basic</binary>
+      <binary>notes-applet</binary>
     </binaries>
   </provides>
   <requires>

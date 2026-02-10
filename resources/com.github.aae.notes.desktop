@@ -1,9 +1,9 @@
 [Desktop Entry]
-Name=Notes Basic
-Comment=Basic implementation of sticky notes
+Name=Sticky Notes
+Comment=Implementation of sticky notes for Cosmmic desktop environment
 Type=Application
 Icon=com.github.aae.notes
-Exec=notes-basic %F
+Exec=notes-applet %F
 Terminal=false
 StartupNotify=true
 Categories=COSMIC

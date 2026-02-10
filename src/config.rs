@@ -20,6 +20,8 @@ pub struct Config {
     pub restore_notes_heigth: usize,
     pub edit_style_width: usize,
     pub edit_style_heigth: usize,
+    pub about_width: usize,
+    pub about_height: usize,
     pub toolbar_icon_size: u16,
 }
 
@@ -39,6 +41,8 @@ impl Default for Config {
             restore_notes_heigth: 400,
             edit_style_width: 480,
             edit_style_heigth: 800,
+            about_width: 480,
+            about_height: 840,
             toolbar_icon_size: ICON_SIZE,
         }
     }
@@ -59,5 +63,10 @@ impl Config {
             to_f32(self.edit_style_width),
             to_f32(self.edit_style_heigth),
         )
+    }
+
+    #[must_use]
+    pub fn about_size(&self) -> Size {
+        Size::new(to_f32(self.about_width), to_f32(self.about_height))
     }
 }
