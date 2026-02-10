@@ -8,6 +8,7 @@ pub use {
     utils::to_f32,
 };
 
+mod about_window;
 mod applet;
 mod edit_style;
 mod restore_view;
@@ -31,6 +32,7 @@ pub enum Command {
     LockAll,
     RestoreNotes,
     OpenSettings,
+    OpenAbout,
 }
 
 #[derive(Debug, Error)]
@@ -51,6 +53,7 @@ const HIDE: &str = "HIDE";
 const LOCK: &str = "LOCK";
 const RESTORE: &str = "RESTORE";
 const SETTINGS: &str = "SETTINGS";
+const ABOUT: &str = "ABOUT";
 
 impl std::fmt::Display for Command {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -69,6 +72,7 @@ impl std::fmt::Display for Command {
                 Command::LockAll => LOCK,
                 Command::RestoreNotes => RESTORE,
                 Command::OpenSettings => SETTINGS,
+                Command::OpenAbout => ABOUT,
             }
         )
     }
@@ -90,6 +94,7 @@ impl FromStr for Command {
             LOCK => Ok(Self::LockAll),
             RESTORE => Ok(Self::RestoreNotes),
             SETTINGS => Ok(Self::OpenSettings),
+            ABOUT => Ok(Self::OpenAbout),
             _ => Err(NotesAppError::ParseError(s.to_string())),
         }
     }

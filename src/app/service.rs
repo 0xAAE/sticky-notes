@@ -3,6 +3,7 @@
 use crate::{
     app::{
         Command,
+        about_window::AboutWindow,
         edit_style::EditStyleDialog,
         restore_view::build_restore_view,
         settings_view::build_settings_view,
@@ -49,6 +50,7 @@ pub enum Message {
     RestoreWindowCreated(Id),
     SettingsWindowCreated(Id),
     EditStyleWindowCreated(Id, Uuid), // (window_id, style_id)
+    AboutWindowCreated(Id),
     // settings actions
     SetDefaultStyle(usize), // set deafault style by index
     // notes collection load result shared for Load and Import
@@ -97,6 +99,7 @@ pub struct ServiceModel {
     settings_window_id: Option<Id>,
     edit_style: Option<(Id, EditStyleDialog)>,
     restore_window_id: Option<Id>,
+    about_window: Option<(Id, AboutWindow)>,
     // sticky windows by ID
     sticky_windows: HashMap<Id, StickyWindow>,
     // Window is under cursor at the moment
@@ -159,6 +162,7 @@ impl cosmic::Application for ServiceModel {
             settings_window_id: None,
             edit_style: None,
             restore_window_id: None,
+            about_window: None,
             sticky_windows: HashMap::new(),
             cursor_window: None,
             icons: icons::IconSet::new(),
@@ -222,6 +226,13 @@ impl cosmic::Application for ServiceModel {
             && *window_id == id
         {
             widget::container(dialog.build_dialog_view())
+                .class(cosmic::style::Container::Background)
+                .padding(cosmic::theme::spacing().space_s)
+                .into()
+        } else if let Some((window_id, about)) = &self.about_window
+            && *window_id == id
+        {
+            widget::container(about.build_view(&self.icons))
                 .class(cosmic::style::Container::Background)
                 .padding(cosmic::theme::spacing().space_s)
                 .into()
@@ -347,11 +358,17 @@ impl cosmic::Application for ServiceModel {
             }
 
             Message::RestoreWindowCreated(id) => {
+                if self.restore_window_id.is_some() {
+                    tracing::warn!("replacing exisiting restore window ID with new one");
+                }
                 self.restore_window_id = Some(id);
                 return self.set_window_title(fl!("recently-deleted-title"), id);
             }
 
             Message::SettingsWindowCreated(id) => {
+                if self.settings_window_id.is_some() {
+                    tracing::warn!("replacing exisiting settings window ID with new one");
+                }
                 self.settings_window_id = Some(id);
                 return self.set_window_title(fl!("settings-title"), id);
             }
@@ -359,11 +376,22 @@ impl cosmic::Application for ServiceModel {
             Message::EditStyleWindowCreated(window_id, style_id) => {
                 match self.notes.try_get_style(&style_id) {
                     Ok(style) => {
+                        if self.edit_style.is_some() {
+                            tracing::warn!("replacing exisiting edit style dialog with new one");
+                        }
                         self.edit_style = Some((window_id, EditStyleDialog::new(style_id, style)));
                         return self.set_window_title(fl!("create-new-style"), window_id);
                     }
                     Err(e) => eprint!("Failed to edit style: {e}"),
                 }
+            }
+
+            Message::AboutWindowCreated(id) => {
+                if self.about_window.is_some() {
+                    tracing::warn!("replacing exisiting about window with new one");
+                }
+                self.about_window = Some((id, AboutWindow::new()));
+                return self.set_window_title(fl!("about-title"), id);
             }
 
             // redirect edit actions to the edit context
@@ -568,6 +596,10 @@ impl ServiceModel {
 
             Command::OpenSettings => {
                 return Self::spawn_settings_window();
+            }
+
+            Command::OpenAbout => {
+                return Self::spawn_about_window();
             }
         }
 
@@ -901,6 +933,10 @@ impl ServiceModel {
                     && *window_id == id
                 {
                     self.edit_style = None;
+                } else if let Some((window_id, _)) = &self.about_window
+                    && *window_id == id
+                {
+                    self.about_window = None;
                 } else if let Some(main_id) = self.core.main_window_id()
                     && main_id == id
                 {
@@ -948,6 +984,11 @@ impl ServiceModel {
     fn spawn_settings_window() -> Task<cosmic::Action<Message>> {
         let (_id, spawn_window) = window::open(window::Settings::default());
         spawn_window.map(|id| cosmic::Action::App(Message::SettingsWindowCreated(id)))
+    }
+
+    fn spawn_about_window() -> Task<cosmic::Action<Message>> {
+        let (_id, spawn_window) = window::open(window::Settings::default());
+        spawn_window.map(|id| cosmic::Action::App(Message::AboutWindowCreated(id)))
     }
 
     fn spawn_edit_style_window(&self, style_id: Uuid) -> Task<cosmic::Action<Message>> {
