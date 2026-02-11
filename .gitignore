@@ -16,3 +16,4 @@ debian/*
 .vscode/
 local/
 .local/
+.cspell/
