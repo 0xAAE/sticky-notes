@@ -30,8 +30,8 @@ service := 'notes-service'
 log-tracing := 'warn,sticky_notes=trace'
 
 # Default recipe
-default:
-    env RUST_BACKTRACE=full RUST_LOG={{log-tracing}} cargo run --bin {{applet}}
+default: (rund-applet)
+#    env RUST_BACKTRACE=full RUST_LOG={{log-tracing}} cargo run --bin {{applet}}
 
 # Runs `cargo clean`
 clean:
@@ -61,9 +61,29 @@ check *args:
 # Runs a clippy check with JSON message format
 check-json: (check '--message-format=json')
 
+# Compiles all targets with release profile
+release:
+    cargo build --release --bin notes-service --bin notes-applet
+
+# Compiles all targets with debug profile
+debug:
+    cargo build --bin notes-service --bin notes-applet
+
+# Run the application for debugging purposes
+rund *args:
+    env RUST_BACKTRACE=full RUST_LOG={{log-tracing}} cargo run --bin {{args}}
+
+rund-applet: (rund 'notes-applet')
+
+rund-service: (rund 'notes-service')
+
 # Run the application for testing purposes
 run *args:
-    env RUST_BACKTRACE=full RUST_LOG={{log-tracing}} cargo run --release {{args}}
+    env RUST_BACKTRACE=full RUST_LOG={{log-tracing}} cargo run --release --bin {{args}}
+
+run-applet: (run 'notes-applet')
+
+run-service: (run 'notes-service')
 
 # Installs files
 install:
@@ -98,17 +118,3 @@ tag version:
     git commit -m 'release: {{version}}'
     git commit --amend
     git tag -a {{version}} -m ''
-
-# my manual additions
-
-# Compiles with release profile
-rel:
-    cargo build --release --bin notes-service --bin notes-applet
-
-# Compiles with debug profile
-dbg:
-    cargo build --bin notes-service --bin notes-applet
-
-# Run the application for debugging purposes
-rund *args:
-    env RUST_BACKTRACE=full RUST_LOG={{log-tracing}} cargo run --bin {{args}}
