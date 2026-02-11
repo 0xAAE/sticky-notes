@@ -37,7 +37,7 @@ impl AboutWindow {
         }
     }
 
-    pub fn build_view<'a>(&'a self) -> Element<'a, Message> {
+    pub fn build_view(&self) -> Element<'_, Message> {
         widget::container(widget::about(&self.about, |url| {
             Message::OpenUrl(url.to_string())
         }))
