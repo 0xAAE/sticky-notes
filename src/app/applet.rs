@@ -260,9 +260,9 @@ impl AppletModel {
                 .on_press(Message::Signal(Command::ExportNotes)),
         ];
         let show_lock = column![
-            applet::menu_button(widget::text::body(fl!("hide-all")))
-                .on_press(Message::Signal(Command::ShowAllNotes)),
             applet::menu_button(widget::text::body(fl!("show-all")))
+                .on_press(Message::Signal(Command::ShowAllNotes)),
+            applet::menu_button(widget::text::body(fl!("hide-all")))
                 .on_press(Message::Signal(Command::HideAllNotes)),
             applet::menu_button(widget::text::body(fl!("lock-all")))
                 .on_press(Message::Signal(Command::LockAll)),
@@ -320,7 +320,7 @@ impl AppletModel {
                 Err(e) => tracing::error!("failed building dbus proxy client: {e}"),
             }
         } else {
-            tracing::info!("failed building dbus proxy client: connection is not establlished yet");
+            tracing::info!("failed building dbus proxy client: connection is not established yet");
         }
         Task::none()
     }
@@ -344,7 +344,7 @@ impl AppletModel {
                         false,
                     )
                     .await;
-                    //todo: consider waiting for a while to prevent spaming with calls to spawn_desktop_exec(), then repeat command again
+                    //todo: consider waiting for a while to prevent spamming with calls to spawn_desktop_exec(), then repeat command again
                     cosmic::Action::App(Message::SignalResult(command, false))
                 } else {
                     cosmic::Action::App(Message::SignalResult(command, true))
