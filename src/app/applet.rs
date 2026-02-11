@@ -20,6 +20,7 @@ use cosmic::{
 pub enum Message {
     UpdateConfig(Config),
     TogglePopup,
+    ClosePopupIfOpen,
     Signal(Command),
     SignalResult(Command, bool), // (command, success or not)
     ZbusConnection(zbus::Result<zbus::Connection>),
@@ -155,29 +156,15 @@ impl cosmic::Application for AppletModel {
                 self.config = config;
             }
 
+            Message::ClosePopupIfOpen => {
+                return self.close_popup();
+            }
+
             Message::TogglePopup => {
-                if let Some(p) = self.main_popup_id.take() {
-                    return cosmic::iced::platform_specific::shell::commands::popup::destroy_popup(
-                        p,
-                    );
+                if self.main_popup_id.is_some() {
+                    return self.close_popup();
                 }
-                let new_id = window::Id::unique();
-                self.main_popup_id.replace(new_id);
-                let mut popup_settings = self.core.applet.get_popup_settings(
-                    self.core.main_window_id().unwrap(),
-                    new_id,
-                    Some((500, 500)),
-                    None,
-                    None,
-                );
-                popup_settings.positioner.size_limits = Limits::NONE
-                    .min_width(100.0)
-                    .min_height(100.0)
-                    .max_height(400.0)
-                    .max_width(500.0);
-                return cosmic::iced::platform_specific::shell::commands::popup::get_popup(
-                    popup_settings,
-                );
+                return self.open_popup();
             }
 
             Message::ZbusConnection(Err(e)) => {
@@ -205,7 +192,9 @@ impl cosmic::Application for AppletModel {
 
             Message::Signal(command) => {
                 tracing::debug!("requested {command}");
-                return self.send_command_via_dbus(command);
+                // toggle (actually close) Popup, then send signal via DBus
+                return Task::done(cosmic::Action::App(Message::TogglePopup))
+                    .chain(self.send_command_via_dbus(command));
             }
 
             Message::SignalResult(command, success) => {
@@ -229,6 +218,34 @@ impl cosmic::Application for AppletModel {
 }
 
 impl AppletModel {
+    fn close_popup(&mut self) -> Task<cosmic::Action<Message>> {
+        if let Some(p) = self.main_popup_id.take() {
+            tracing::debug!("destroying popup menu");
+            cosmic::iced::platform_specific::shell::commands::popup::destroy_popup(p)
+        } else {
+            Task::none()
+        }
+    }
+
+    fn open_popup(&mut self) -> Task<cosmic::Action<Message>> {
+        tracing::debug!("build popup menu");
+        let new_id = window::Id::unique();
+        self.main_popup_id.replace(new_id);
+        let mut popup_settings = self.core.applet.get_popup_settings(
+            self.core.main_window_id().unwrap(),
+            new_id,
+            Some((500, 500)),
+            None,
+            None,
+        );
+        popup_settings.positioner.size_limits = Limits::NONE
+            .min_width(100.0)
+            .min_height(100.0)
+            .max_height(500.0)
+            .max_width(500.0);
+        cosmic::iced::platform_specific::shell::commands::popup::get_popup(popup_settings)
+    }
+
     fn build_main_popup_view(&self) -> Element<'_, Message> {
         let save_load = column![
             applet::menu_button(widget::text::body(fl!("load")))
