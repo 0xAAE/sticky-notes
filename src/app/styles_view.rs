@@ -1,4 +1,7 @@
-use super::{service::Message, utils::with_background};
+use super::{
+    service::Message,
+    utils::{cosmic_font, with_background},
+};
 use crate::{
     fl,
     icons::IconSet,
@@ -47,10 +50,13 @@ fn build_style_list_item<'a>(
         .width(Length::Fill)
         .push(
             widget::text(format!(
-                "{}, preferred font {}",
+                "{}, {}: {}",
                 style.get_name(),
-                style.get_font_name()
+                fl!("view-style-font"),
+                style.get_font().style
             ))
+            .font(cosmic_font(style.get_font().style))
+            .size(style.get_font().size)
             .width(Length::Fill),
         )
         .push(

@@ -1,6 +1,8 @@
 use super::service::Message;
+use crate::notes::FontStyle;
 use cosmic::prelude::*;
 use cosmic::{
+    font::{self, Font},
     iced::{self, Color},
     widget,
 };
@@ -42,4 +44,14 @@ pub fn with_background(child: Element<'_, Message>, bgcolor: Color) -> Element<'
         }))
         .padding(cosmic::theme::spacing().space_xs)
         .into()
+}
+
+pub fn cosmic_font(font_style: FontStyle) -> Font {
+    match font_style {
+        FontStyle::Default => font::default(),
+        FontStyle::Light => font::light(),
+        FontStyle::Semibold => font::semibold(),
+        FontStyle::Bold => font::bold(),
+        FontStyle::Monospace => font::mono(),
+    }
 }

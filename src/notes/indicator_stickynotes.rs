@@ -1,3 +1,4 @@
+use super::{Font, FontStyle};
 use chrono::{DateTime, Local, NaiveDateTime, TimeZone};
 use serde::{Deserialize, Deserializer, Serializer, de::Error};
 use serde_json_fmt::JsonSyntaxError;
@@ -6,6 +7,8 @@ use thiserror::Error;
 use uuid::Uuid;
 
 const COMMA_FORMAT: &str = ", ";
+pub const DEFAULT_FONT_NAME: &str = "Open Sans";
+pub const MONOSPACE_FONT_NAME: &str = "Monospace";
 
 #[derive(Debug, Error)]
 pub enum IndicatorStickyNotesError {
@@ -18,7 +21,7 @@ pub enum IndicatorStickyNotesError {
     // Failed formatting JSON-content: no indentation
     #[error("Failed setting indentation to None: {0}")]
     FormatIndent(JsonSyntaxError),
-    // Failed formatting JSON-content: spacebar after comma
+    // Failed formatting JSON-content: space bar after comma
     #[error("Failed setting comma to {COMMA_FORMAT}: {0}")]
     FormatComma(JsonSyntaxError),
     // Failed parsing JSON-content
@@ -132,6 +135,149 @@ impl NotesDatabase {
             .map_err(IndicatorStickyNotesError::Json)
             .map(|s| s.as_bytes().to_vec())
     }
+}
+
+pub(super) fn parse_font(font_string: &str) -> Font {
+    // example of font_string: "Open Sans 14"
+    let font_size_string: String = font_string
+        .chars()
+        .rev()
+        .take_while(char::is_ascii_digit)
+        .collect::<Vec<char>>()
+        .iter()
+        .rev()
+        .collect();
+    if let Ok(size) = font_size_string.parse()
+        && size > 0
+    {
+        Font {
+            style: FontStyle::Default,
+            size,
+        }
+    } else {
+        Font::default()
+    }
+}
+
+pub(super) fn serialize_font(font: &Font) -> String {
+    if font.style == FontStyle::Monospace {
+        format!("{MONOSPACE_FONT_NAME} {}", font.size)
+    } else {
+        format!("{DEFAULT_FONT_NAME} {}", font.size)
+    }
+}
+
+#[test]
+fn parse_font_string() {
+    use super::DEF_NOTE_FONT_SIZE;
+
+    let non_default_size: u16 = Font::default().size + 1;
+
+    // normal case
+    assert_eq!(
+        Font {
+            style: FontStyle::Default,
+            size: non_default_size
+        },
+        parse_font(&format!("Open Sans {non_default_size}"))
+    );
+    // no separator before the font size
+    assert_eq!(
+        Font {
+            style: FontStyle::Default,
+            size: non_default_size
+        },
+        parse_font(&format!("Open Sans{non_default_size}"))
+    );
+    // omitted font size
+    assert_eq!(
+        Font {
+            style: FontStyle::Default,
+            size: DEF_NOTE_FONT_SIZE
+        },
+        parse_font("Open Sans")
+    );
+    // negative font size ('-' is simply ignored)
+    assert_eq!(
+        Font {
+            style: FontStyle::Default,
+            size: non_default_size
+        },
+        parse_font(&format!("Open Sans -{non_default_size}"))
+    );
+    // zero font size
+    assert_eq!(
+        Font {
+            style: FontStyle::Default,
+            size: DEF_NOTE_FONT_SIZE
+        },
+        parse_font("Open Sans 0")
+    );
+    // only font size
+    assert_eq!(
+        Font {
+            style: FontStyle::Default,
+            size: non_default_size
+        },
+        parse_font(&format!("{non_default_size}"))
+    );
+}
+
+#[test]
+fn serialize_font_to_string() {
+    let non_default_size: u16 = Font::default().size + 1;
+
+    // bold, non-default size
+    assert_eq!(
+        serialize_font(&Font {
+            style: FontStyle::Bold,
+            size: non_default_size
+        }),
+        format!("{DEFAULT_FONT_NAME} {non_default_size}")
+    );
+
+    // default style, non-default size
+    assert_eq!(
+        serialize_font(&Font {
+            style: FontStyle::Default,
+            size: non_default_size
+        }),
+        format!("{DEFAULT_FONT_NAME} {non_default_size}")
+    );
+
+    // light, non-default size
+    assert_eq!(
+        serialize_font(&Font {
+            style: FontStyle::Light,
+            size: non_default_size
+        }),
+        format!("{DEFAULT_FONT_NAME} {non_default_size}")
+    );
+
+    // semibold, non-default size
+    assert_eq!(
+        serialize_font(&Font {
+            style: FontStyle::Semibold,
+            size: non_default_size
+        }),
+        format!("{DEFAULT_FONT_NAME} {non_default_size}")
+    );
+
+    // monospace, non-default size
+    assert_eq!(
+        serialize_font(&Font {
+            style: FontStyle::Monospace,
+            size: non_default_size
+        }),
+        format!("{MONOSPACE_FONT_NAME} {non_default_size}")
+    );
+
+    // default style, default size
+    let default_font = Font::default();
+    assert_eq!(
+        serialize_font(&default_font),
+        format!("{DEFAULT_FONT_NAME} {}", default_font.size)
+    );
 }
 
 #[test]

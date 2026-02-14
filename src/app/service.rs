@@ -8,11 +8,11 @@ use crate::{
         restore_view::build_restore_view,
         settings_view::build_settings_view,
         sticky_window::StickyWindow,
-        utils::{to_f32, to_usize, with_background},
+        utils::{to_f32, to_usize},
     },
     config::Config,
     fl, icons,
-    notes::{NoteData, NoteStyle, NotesCollection},
+    notes::{Font, FontStyle, NoteData, NotesCollection},
 };
 use cosmic::prelude::*;
 use cosmic::{
@@ -53,7 +53,7 @@ pub enum Message {
     EditStyleWindowCreated(Id, Uuid), // (window_id, style_id)
     AboutWindowCreated(Id),
     // Settings actions
-    SetDefaultStyle(usize), // set deafault style by index
+    SetDefaultStyle(usize), // set default style by index
     // Notes collection load results
     LoadNotesCompleted(NotesCollection),
     LoadNotesFailed(String), // error message
@@ -71,21 +71,23 @@ pub enum Message {
     // response on window::get_position() request
     WindowPositionResponse((Id, Option<Point>)),
     // Sticky window buttons
-    NoteLock(Id, bool),          // lock / unlock note
-    NoteEdit(Id, bool),          // edit / save note content
-    NoteStyle(Id),               // select style (background, font) for sticky window
-    NoteSyleSelected(Id, usize), // style (background, font) for sticky window was selected by index in styles collection
-    NoteNew,                     // create new note with default syle and begin edit
-    NoteDelete(Id),              // delete note
-    NoteRestore(Uuid),           // restore note
+    NoteLock(Id, bool),           // lock / unlock note
+    NoteEdit(Id, bool),           // edit / save note content
+    NoteStyle(Id),                // select style (background, font) for sticky window
+    NoteStyleSelected(Id, usize), // style (background, font) for sticky window was selected by index in styles collection
+    NoteNew,                      // create new note with default style and begin edit
+    NoteDelete(Id),               // delete note
+    NoteRestore(Uuid),            // restore note
     // Styles view buttons
-    StyleNew,               // add new style
-    StyleEdit(Uuid),        // edit style by style_id
-    StyleDelete(Uuid),      // delete style by style_id
-    EditStyleUpdate,        // Ok was pressed in edit style dialog
-    EditStyleCancel,        // Cancel was pressed in edit style dialog
-    InputStyleName(String), // update currently edited style name
-    ColorUpdate(widget::color_picker::ColorPickerUpdate),
+    StyleNew,                                             // add new style
+    StyleEdit(Uuid),                                      // edit style by style_id
+    StyleDelete(Uuid),                                    // delete style by style_id
+    EditStyleUpdate,                                      // Ok was pressed in edit style dialog
+    EditStyleCancel,                                      // Cancel was pressed in edit style dialog
+    InputStyleName(String),                               // update currently edited style name
+    ColorUpdate(widget::color_picker::ColorPickerUpdate), // update currently edited style color
+    FontStyleUpdate(FontStyle),                           // update currently edited style font
+    FontSizeUpdate(u16),                                  // update currently edited style font size
     // Open URL
     OpenUrl(String),
 }
@@ -196,13 +198,7 @@ impl cosmic::Application for ServiceModel {
     /// Constructs views for other windows.
     fn view_window(&self, id: Id) -> Element<'_, Self::Message> {
         if let Some(sticky_window) = self.sticky_windows.get(&id) {
-            let note_bg = self
-                .notes
-                .try_get_note_style(sticky_window.get_note_id())
-                .map_or(Color::WHITE, NoteStyle::get_background_color);
-            let window_content = sticky_window.build_view(id, &self.notes, &self.icons);
-            let window_view = with_background(window_content, note_bg);
-            iced::widget::column![window_view].into()
+            sticky_window.build_view(id, &self.notes, &self.icons)
         } else if let Some(window_id) = self.restore_window_id
             && window_id == id
         {
@@ -267,7 +263,7 @@ impl cosmic::Application for ServiceModel {
                 Event::Mouse(MouseEvent::CursorMoved { .. })
                 | Event::Window(WindowEvent::RedrawRequested(_)) => None,
                 Event::Mouse(mouse_event) => {
-                    // get Mouse events onpy if unhandled
+                    // get Mouse events only if unhandled
                     if status == EventStatus::Ignored {
                         Some(Message::AppMouseEvent((id, mouse_event)))
                     } else {
@@ -362,7 +358,7 @@ impl cosmic::Application for ServiceModel {
 
             Message::RestoreWindowCreated(id) => {
                 if self.restore_window_id.is_some() {
-                    tracing::warn!("replacing exisiting restore window ID with new one");
+                    tracing::warn!("replacing existing restore window ID with new one");
                 }
                 self.restore_window_id = Some(id);
                 return self.set_window_title(fl!("recently-deleted-title"), id);
@@ -370,7 +366,7 @@ impl cosmic::Application for ServiceModel {
 
             Message::SettingsWindowCreated(id) => {
                 if self.settings_window_id.is_some() {
-                    tracing::warn!("replacing exisiting settings window ID with new one");
+                    tracing::warn!("replacing existing settings window ID with new one");
                 }
                 self.settings_window_id = Some(id);
                 return self.set_window_title(fl!("settings-title"), id);
@@ -380,7 +376,7 @@ impl cosmic::Application for ServiceModel {
                 match self.notes.try_get_style(&style_id) {
                     Ok(style) => {
                         if self.edit_style.is_some() {
-                            tracing::warn!("replacing exisiting edit style dialog with new one");
+                            tracing::warn!("replacing existing edit style dialog with new one");
                         }
                         self.edit_style = Some((window_id, EditStyleDialog::new(style_id, style)));
                         return self.set_window_title(fl!("create-new-style"), window_id);
@@ -391,7 +387,7 @@ impl cosmic::Application for ServiceModel {
 
             Message::AboutWindowCreated(id) => {
                 if self.about_window.is_some() {
-                    tracing::warn!("replacing exisiting about window with new one");
+                    tracing::warn!("replacing existing about window with new one");
                 }
                 self.about_window = Some((id, AboutWindow::new(&self.icons)));
                 return self.set_window_title(fl!("about-title"), id);
@@ -443,7 +439,7 @@ impl cosmic::Application for ServiceModel {
                 }
             }
 
-            Message::NoteSyleSelected(id, style_index) => {
+            Message::NoteStyleSelected(id, style_index) => {
                 self.on_style_selected(id, style_index);
             }
 
@@ -476,7 +472,7 @@ impl cosmic::Application for ServiceModel {
                     self.on_style_updated(
                         dialog.get_id(),
                         dialog.get_name(),
-                        dialog.get_font_name(),
+                        dialog.get_font(),
                         dialog.get_background_color(),
                     );
                     return window::close(window_id);
@@ -501,6 +497,18 @@ impl cosmic::Application for ServiceModel {
             Message::ColorUpdate(event) => {
                 if let Some((_window_id, dialog)) = &mut self.edit_style {
                     return dialog.on_color_picker_update(event);
+                }
+            }
+
+            Message::FontStyleUpdate(font_style) => {
+                if let Some((_window_id, dialog)) = &mut self.edit_style {
+                    dialog.update_font_style(font_style);
+                }
+            }
+
+            Message::FontSizeUpdate(font_size) => {
+                if let Some((_window_id, dialog)) = &mut self.edit_style {
+                    dialog.update_font_size(font_size);
                 }
             }
 
@@ -563,7 +571,7 @@ impl ServiceModel {
             }
 
             Command::SaveNotes => {
-                //todo: stop edititng all sticky windows or ask user
+                //todo: stop editing all sticky windows or ask user
                 if let Err(e) = self.save_notes() {
                     tracing::error!("failed saving notes: {e}");
                 }
@@ -580,7 +588,7 @@ impl ServiceModel {
             }
 
             Command::ExportNotes => {
-                //todo: stop edititng all sticky windows (?) or ask user about
+                //todo: stop editing all sticky windows (?) or ask user about
                 let export_file = self.config.import_file.clone();
                 let notes = self.notes.clone();
                 return cosmic::task::future(Self::export_notes(export_file, notes));
@@ -621,7 +629,7 @@ impl ServiceModel {
                 action: action_name,
                 args: _,
             } => {
-                tracing::info!("handling dbus_activaltion message {}", &action_name);
+                tracing::info!("handling dbus_activation message {}", &action_name);
                 match Command::from_str(action_name.as_str()) {
                     Ok(cmd) => {
                         return Task::done(cosmic::Action::App(Message::Signal(cmd)));
@@ -651,7 +659,7 @@ impl ServiceModel {
         // warn if deleted notes were dropped
         let count_deleted = self.notes.iter_deleted_notes().count();
         if count_deleted > 0 {
-            //TODO: what about saving deleted notes too? Maybe with their TTLs
+            //todo: what about saving deleted notes too? Maybe with their TTLs
             tracing::warn!("completely drop some deleted notes on exit: {count_deleted}");
         }
     }
@@ -864,11 +872,11 @@ impl ServiceModel {
         }
     }
 
-    fn on_style_updated(&mut self, style_id: Uuid, name: &str, font_name: &str, bgcolor: Color) {
+    fn on_style_updated(&mut self, style_id: Uuid, name: &str, font: Font, bgcolor: Color) {
         match self.notes.try_get_style_mut(&style_id) {
             Ok(style) => {
                 style.set_name(name);
-                style.set_font_name(font_name);
+                style.set_font(font);
                 style.set_background_color(bgcolor);
             }
             Err(e) => tracing::error!("failed to update style: {e}"),

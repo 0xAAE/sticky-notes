@@ -1,5 +1,5 @@
 use super::{
-    DEF_NOTE_HEIGHT, DEF_NOTE_WIDTH, EMTPY_TITLE, MAX_TITLE_CHARS, NO_TITLE,
+    DEF_NOTE_HEIGHT, DEF_NOTE_WIDTH, EMPTY_TITLE, MAX_TITLE_CHARS, NO_TITLE,
     indicator_stickynotes as import,
 };
 use chrono::{DateTime, Local, Utc};
@@ -60,7 +60,7 @@ impl NoteData {
     #[must_use]
     pub fn get_title(&self) -> &str {
         if self.content.is_empty() {
-            EMTPY_TITLE
+            EMPTY_TITLE
         } else {
             self.content.lines().next().map_or(NO_TITLE, |line| {
                 match line.char_indices().nth(MAX_TITLE_CHARS) {

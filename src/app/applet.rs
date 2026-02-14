@@ -335,7 +335,7 @@ impl AppletModel {
                     .await
                 {
                     tracing::error!("failed sending {command_str}: {e}");
-                    //TODO: test error before spawning service; valid candidates are: InterfaceNotFound, Failure(e)
+                    //todo: test error before spawning service; valid candidates are: InterfaceNotFound, Failure(e)
                     tracing::info!("trying to launch notes-service binary: {}", &service_exec);
                     desktop::spawn_desktop_exec(
                         service_exec.as_str(),

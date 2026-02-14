@@ -7,13 +7,14 @@ use std::{
 };
 
 use super::{
-    NoteData, NoteStyle,
+    Font, NoteData, NoteStyle,
     indicator_stickynotes::{
         CategoryProperties as StickyNotesCategoryProperties,
         GlobalProperties as StickyNotesGlobalProperties,
         IndicatorStickyNotesError as StickyNotesError, Note as StickyNotesNote,
         NoteProperties as StickyNotesNoteProperties, NotesDatabase as StickyNotesDatabase,
-        try_export_indicator_stickynotes, try_import_indicator_stickynotes,
+        parse_font, serialize_font, try_export_indicator_stickynotes,
+        try_import_indicator_stickynotes,
     },
 };
 use cosmic::{
@@ -29,7 +30,7 @@ pub enum NotesCollectionError {
     #[error("Failed importing notes: {0}")]
     Import(StickyNotesError),
     // Failed writing export file
-    #[error("Failed iexporting notes: {0}")]
+    #[error("Failed exporting notes: {0}")]
     Export(StickyNotesError),
     // Failed parsing input text
     #[error("Failed parsing notes: {0}")]
@@ -85,7 +86,11 @@ impl From<StickyNotesDatabase> for NotesCollection {
                 let rgb = Rgb::from_color_unclamped(hsv).into_components();
                 (
                     id,
-                    NoteStyle::new(cat.name, cat.font, Color::from_rgb(rgb.0, rgb.1, rgb.2)),
+                    NoteStyle::new(
+                        cat.name,
+                        parse_font(&cat.font),
+                        Color::from_rgb(rgb.0, rgb.1, rgb.2),
+                    ),
                 )
             })
             .collect();
@@ -129,7 +134,7 @@ impl From<NotesCollection> for StickyNotesDatabase {
                     style_id,
                     StickyNotesCategoryProperties {
                         name: style.get_name().to_string(),
-                        font: style.get_font_name().to_string(),
+                        font: serialize_font(style.get_font()),
                         bgcolor_hsv: vec![hsv.hue.into(), hsv.saturation, hsv.value],
                     },
                 )
@@ -345,11 +350,11 @@ impl NotesCollection {
         let new_style = if let Ok(source) = self.try_get_default_style() {
             NoteStyle::new(
                 name,
-                source.get_font_name().to_string(),
+                source.get_font().clone(),
                 source.get_background_color(),
             )
         } else {
-            NoteStyle::new(name, "?".to_string(), Color::WHITE)
+            NoteStyle::new(name, Font::default(), Color::WHITE)
         };
         self.styles.insert(id, new_style);
         id
@@ -442,7 +447,7 @@ impl NotesCollection {
 
 impl Default for NotesCollection {
     fn default() -> Self {
-        // instantiat edefault note style
+        // instantiate default note style
         let default_style = Uuid::new_v4();
         let styles = HashMap::from_iter([(default_style, NoteStyle::default())]);
         // create note with default style
@@ -549,7 +554,7 @@ fn for_each_note_mut() {
     // test all of notes are visible
     assert!(collection.iter_notes().all(|(_, note)| note.is_visible()));
 
-    // using for_eahc_not_mut() to hgide all notes
+    // using for_each_not_mut() to hide all notes
     collection.for_each_note_mut(|note: &mut NoteData| note.set_visibility(false));
 
     // test all of notes are hidden

@@ -1,21 +1,67 @@
-use super::{DEF_NOTE_STYLE_FONT, DEF_NOTE_STYLE_NAME};
+use super::{DEF_NOTE_FONT_SIZE, DEF_NOTE_STYLE_NAME};
 use cosmic::{cosmic_theme::palette::Srgb, iced::Color};
 use serde::{Deserialize, Deserializer, Serializer, ser::SerializeTuple};
 
+/// The style defines how to adjust font to display a text
+#[derive(serde::Deserialize, serde::Serialize, Clone, Copy, Debug, Default, PartialEq)]
+pub enum FontStyle {
+    #[default]
+    Default,
+    Light,
+    Semibold,
+    Bold,
+    Monospace,
+}
+
+impl std::fmt::Display for FontStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FontStyle::Default => write!(f, "Default"),
+            FontStyle::Light => write!(f, "Light"),
+            FontStyle::Semibold => write!(f, "Semibold"),
+            FontStyle::Bold => write!(f, "Bold"),
+            FontStyle::Monospace => write!(f, "Monospace"),
+        }
+    }
+}
+
+/// The set of font parameters to display a text
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq)]
+pub struct Font {
+    pub style: FontStyle,
+    pub size: u16,
+}
+
+impl Default for Font {
+    fn default() -> Self {
+        Self {
+            style: FontStyle::default(),
+            size: DEF_NOTE_FONT_SIZE,
+        }
+    }
+}
+
+/// The style to use when display a sticky note
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq)]
 pub struct NoteStyle {
     name: String,
-    font_name: String,
-    #[serde(
-        deserialize_with = "deserialize_from_str",
-        serialize_with = "serialize_to_str"
-    )]
+    //#[serde(rename(deserialize = "font_name"), deserialize_with = "font_from_str")]
+    font: Font,
+    #[serde(deserialize_with = "color_from_str", serialize_with = "color_to_str")]
     bgcolor: Color,
     #[serde(skip)]
     is_dirty: bool,
 }
 
-fn deserialize_from_str<'de, D>(deserializer: D) -> Result<Color, D::Error>
+// fn font_from_str<'de, D>(deserializer: D) -> Result<Font, D::Error>
+// where
+//     D: Deserializer<'de>,
+// {
+//     let text: &str = Deserialize::deserialize(deserializer)?;
+//     Ok(indicator_stickynotes::parse_font(text))
+// }
+
+fn color_from_str<'de, D>(deserializer: D) -> Result<Color, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -23,7 +69,7 @@ where
     Ok(Color::from(rgb))
 }
 
-fn serialize_to_str<S>(value: &Color, serializer: S) -> Result<S::Ok, S::Error>
+fn color_to_str<S>(value: &Color, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -39,7 +85,7 @@ impl Default for NoteStyle {
     fn default() -> Self {
         Self {
             name: DEF_NOTE_STYLE_NAME.to_string(),
-            font_name: DEF_NOTE_STYLE_FONT.to_string(),
+            font: Font::default(),
             bgcolor: Color::WHITE,
             is_dirty: false,
         }
@@ -48,10 +94,10 @@ impl Default for NoteStyle {
 
 impl NoteStyle {
     #[must_use]
-    pub fn new(name: String, font_name: String, bgcolor: Color) -> Self {
+    pub fn new(name: String, font: Font, bgcolor: Color) -> Self {
         Self {
             name,
-            font_name,
+            font,
             bgcolor,
             is_dirty: false,
         }
@@ -63,8 +109,8 @@ impl NoteStyle {
     }
 
     #[must_use]
-    pub fn get_font_name(&self) -> &str {
-        &self.font_name
+    pub fn get_font(&self) -> &Font {
+        &self.font
     }
 
     #[must_use]
@@ -79,9 +125,9 @@ impl NoteStyle {
         }
     }
 
-    pub fn set_font_name(&mut self, font_name: &str) {
-        if self.font_name != font_name {
-            self.font_name = font_name.to_string();
+    pub fn set_font(&mut self, font: Font) {
+        if self.font != font {
+            self.font = font;
             self.is_dirty = true;
         }
     }

@@ -1,6 +1,6 @@
 pub use collection::NotesCollection;
 pub use note_data::NoteData;
-pub use note_style::NoteStyle;
+pub use note_style::{Font, FontStyle, NoteStyle};
 
 mod collection;
 mod indicator_stickynotes;
@@ -8,8 +8,8 @@ mod note_data;
 mod note_style;
 
 const DEF_NOTE_STYLE_NAME: &str = "White";
-const DEF_NOTE_STYLE_FONT: &str = "Open Sans";
-const EMTPY_TITLE: &str = "<Empty>";
+const DEF_NOTE_FONT_SIZE: u16 = 12;
+const EMPTY_TITLE: &str = "<Empty>";
 const NO_TITLE: &str = "Untitled";
 const NO_CONTENT: &str = "click inside to begin edit the content";
 const MAX_TITLE_CHARS: usize = 12;
