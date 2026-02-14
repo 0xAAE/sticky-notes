@@ -523,9 +523,14 @@ impl cosmic::Application for ServiceModel {
     /// Called when a window is resized.
     fn on_window_resize(&mut self, id: window::Id, width: f32, height: f32) {
         if self.sticky_windows.contains_key(&id) {
+            let min_width = self.config.sticky_window_min_width();
+            let min_height = self.config.sticky_window_min_height();
             match self.try_get_note_mut(id) {
                 Ok(note) => {
-                    note.set_size(to_usize(width), to_usize(height));
+                    note.set_size(
+                        to_usize(width).max(min_width),
+                        to_usize(height).max(min_height),
+                    );
                 }
                 Err(e) => tracing::error!("failed to update sticky window size: {e}"),
             }
@@ -752,7 +757,12 @@ impl ServiceModel {
         let note_id = self.notes.new_note();
         match self.notes.try_get_note_mut(&note_id) {
             Ok(note) => {
-                let (window_id, task) = Self::spawn_sticky_window(&note_id, note);
+                let (window_id, task) = Self::spawn_sticky_window(
+                    &note_id,
+                    note,
+                    self.config.sticky_window_min_width(),
+                    self.config.sticky_window_min_height(),
+                );
                 task.chain(
                     cosmic::Task::done(Message::NoteEdit(window_id, true))
                         .map(cosmic::Action::from),
@@ -768,7 +778,12 @@ impl ServiceModel {
     fn on_restore_note(&mut self, note_id: Uuid) -> Task<cosmic::Action<Message>> {
         match self.notes.try_restore_deleted_note(note_id) {
             Ok(note) => {
-                let (_id, task) = Self::spawn_sticky_window(&note_id, note);
+                let (_id, task) = Self::spawn_sticky_window(
+                    &note_id,
+                    note,
+                    self.config.sticky_window_min_width(),
+                    self.config.sticky_window_min_height(),
+                );
                 task
             }
             Err(e) => {
@@ -967,17 +982,27 @@ impl ServiceModel {
     fn spawn_sticky_windows(&mut self) -> Vec<Task<cosmic::Action<Message>>> {
         let existing_windows = std::mem::take(&mut self.sticky_windows);
         let mut commands: Vec<_> = existing_windows.into_keys().map(window::close).collect();
+        let min_width = self.config.sticky_window_min_width();
+        let min_height = self.config.sticky_window_min_height();
         commands.extend(self.notes.iter_notes_mut().map(|(note_id, note)| {
-            let (_, spawn_window) = Self::spawn_sticky_window(note_id, note);
+            let (_, spawn_window) = Self::spawn_sticky_window(note_id, note, min_width, min_height);
             spawn_window
         }));
         commands
     }
 
-    fn spawn_sticky_window(note_id: &Uuid, note: &NoteData) -> (Id, Task<cosmic::Action<Message>>) {
+    fn spawn_sticky_window(
+        note_id: &Uuid,
+        note: &NoteData,
+        min_width: usize,
+        min_height: usize,
+    ) -> (Id, Task<cosmic::Action<Message>>) {
         let (id, spawn_window) = window::open(window::Settings {
             position: Position::Specific(Point::new(to_f32(note.left()), to_f32(note.top()))),
-            size: Size::new(to_f32(note.width()), to_f32(note.height())),
+            size: Size::new(
+                to_f32(note.width().max(min_width)),
+                to_f32(note.height().max(min_height)),
+            ),
             decorations: false,
             ..Default::default()
         });

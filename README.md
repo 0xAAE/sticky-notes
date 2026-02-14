@@ -71,6 +71,20 @@ Example: `1024`
 
 Default values: about_width is `480` and about_height is `840`
 
+### note_min_width, mote_min_height
+optional
+
+Overrides the minimum width and the minimum height of the note sticky window.
+If user manually violates minimum values (making window tiny) they will be accepted until the next start.
+The next start the minimum values will be applied.
+If default values are too large, one might override them setting these parameters.
+
+Value type: `integer`
+
+Example: `32`
+
+Default values: note_min_width is `64` and mote_min_height is `64`
+
 ### toolbar_icon_size
 optional
 
