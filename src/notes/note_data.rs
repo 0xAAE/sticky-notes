@@ -115,7 +115,7 @@ impl NoteData {
 
     pub fn set_position(&mut self, left: usize, top: usize) {
         if self.position != (left, top) {
-            if ! self.is_dirty {
+            if !self.is_dirty {
                 // report only once
                 tracing::debug!("(*) unsaved note: position changed");
             }
@@ -126,7 +126,7 @@ impl NoteData {
 
     pub fn set_size(&mut self, width: usize, height: usize) {
         if self.size != (width, height) {
-            if ! self.is_dirty {
+            if !self.is_dirty {
                 // report only once
                 tracing::debug!("(*) unsaved note: size changed");
             }
@@ -142,7 +142,7 @@ impl NoteData {
 
     pub fn set_locking(&mut self, on: bool) {
         if self.is_locked != on {
-            if ! self.is_dirty {
+            if !self.is_dirty {
                 // report only once
                 tracing::debug!("(*) unsaved note: lock changed");
             }
@@ -158,7 +158,7 @@ impl NoteData {
 
     pub fn set_visibility(&mut self, on: bool) {
         if self.is_visible != on {
-            if ! self.is_dirty {
+            if !self.is_dirty {
                 // report only once
                 tracing::debug!("(*) unsaved note: visibility changed");
             }
@@ -169,7 +169,7 @@ impl NoteData {
 
     pub fn set_style(&mut self, style_id: Uuid) {
         if self.style_id != style_id {
-            if ! self.is_dirty {
+            if !self.is_dirty {
                 // report only once
                 tracing::debug!("(*) unsaved note: style changed");
             }

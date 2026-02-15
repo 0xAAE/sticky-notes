@@ -75,12 +75,7 @@ impl Config {
     }
 
     #[must_use]
-    pub fn sticky_window_min_width(&self) -> usize {
-        self.note_min_width
-    }
-
-    #[must_use]
-    pub fn sticky_window_min_height(&self) -> usize {
-        self.note_min_height
+    pub fn sticky_window_minimum(&self) -> Size<usize> {
+        Size::new(self.note_min_width, self.note_min_height)
     }
 }
