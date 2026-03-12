@@ -10,7 +10,7 @@ use cosmic::{
     dbus_activation::DbusActivationInterfaceProxy,
     desktop,
     iced::{
-        self, Limits, Subscription,
+        self, Limits, Subscription, theme,
         window::{self, Id},
     },
     widget,
@@ -227,7 +227,7 @@ impl cosmic::Application for AppletModel {
         Task::none()
     }
 
-    fn style(&self) -> Option<cosmic::iced_runtime::Appearance> {
+    fn style(&self) -> Option<theme::Style> {
         Some(applet::style())
     }
 }

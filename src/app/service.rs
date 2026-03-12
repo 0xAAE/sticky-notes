@@ -25,6 +25,7 @@ use cosmic::{
         core::mouse::Button as MouseButton,
         event::Status as EventStatus,
         mouse::Event as MouseEvent,
+        theme,
         window::{self, Event as WindowEvent, Id, Position},
     },
     widget,
@@ -616,7 +617,7 @@ impl cosmic::Application for ServiceModel {
     }
 
     #[cfg(feature = "cosmic")]
-    fn style(&self) -> Option<cosmic::iced_runtime::Appearance> {
+    fn style(&self) -> Option<theme::Style> {
         Some(cosmic::applet::style())
     }
 }
@@ -1039,7 +1040,7 @@ impl ServiceModel {
                     && cursor_id == id
                 {
                     return self.core.drag(None).chain(
-                        window::get_position(id)
+                        window::position(id)
                             .map(move |pos| Message::WindowPositionResponse((id, pos)).into()),
                     );
                 }

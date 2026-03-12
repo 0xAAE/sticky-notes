@@ -40,6 +40,7 @@ pub fn with_background(child: Element<'_, Message>, bgcolor: Color) -> Element<'
                     ..Default::default()
                 },
                 shadow: iced::Shadow::default(),
+                snap: false, // Whether the container should be snapped to the pixel grid
             }
         }))
         .padding(cosmic::theme::spacing().space_xs)

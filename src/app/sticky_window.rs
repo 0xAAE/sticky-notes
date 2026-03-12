@@ -218,16 +218,14 @@ impl StickyWindow {
                             .width(Length::Shrink),
                     );
                 }
-                toolbar = toolbar
-                    .push(widget::horizontal_space().width(Length::Fill))
-                    .push(
-                        icons
-                            .create()
-                            .apply(widget::button::icon)
-                            .icon_size(self.icon_size)
-                            .on_press(Message::NoteNew)
-                            .width(Length::Shrink),
-                    );
+                toolbar = toolbar.push(widget::space().width(Length::Fill)).push(
+                    icons
+                        .create()
+                        .apply(widget::button::icon)
+                        .icon_size(self.icon_size)
+                        .on_press(Message::NoteNew)
+                        .width(Length::Shrink),
+                );
                 toolbar
             } else {
                 widget::row()
