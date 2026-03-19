@@ -1,4 +1,5 @@
 # Sticky Notes
+## Stickers with urgent tasks that won't come off. Even after years.
 
 This project is a remake of [indicator-stickynotes](https://github.com/umangv/indicator-stickynotes) using [pop-os/libcosmic](https://github.com/pop-os/libcosmic/tree/master) and targeting the [Cosmic DE](https://github.com/pop-os/cosmic-epoch)
 
