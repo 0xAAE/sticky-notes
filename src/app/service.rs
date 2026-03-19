@@ -25,7 +25,6 @@ use cosmic::{
         core::mouse::Button as MouseButton,
         event::Status as EventStatus,
         mouse::Event as MouseEvent,
-        theme,
         window::{self, Event as WindowEvent, Id, Position},
     },
     widget,
@@ -617,7 +616,7 @@ impl cosmic::Application for ServiceModel {
     }
 
     #[cfg(feature = "cosmic")]
-    fn style(&self) -> Option<theme::Style> {
+    fn style(&self) -> Option<cosmic::iced::theme::Style> {
         Some(cosmic::applet::style())
     }
 }
