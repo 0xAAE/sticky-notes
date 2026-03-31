@@ -82,6 +82,7 @@ pub enum Message {
     NoteNew,                      // create new note with default style and begin edit
     NoteDelete(Id),               // delete note
     NoteRestore(Uuid),            // restore note
+    NoteCopy(Uuid),               // copy note content to clipboard
     // Styles view buttons
     StyleNew,                                             // add new style
     StyleEdit(Uuid),                                      // edit style by style_id
@@ -507,6 +508,10 @@ impl cosmic::Application for ServiceModel {
                 return self.on_restore_note(note_id);
             }
 
+            Message::NoteCopy(note_id) => {
+                return self.on_copy_note(note_id);
+            }
+
             Message::StyleNew => {
                 return self.on_new_style();
             }
@@ -782,7 +787,7 @@ impl ServiceModel {
         let count_deleted = self.notes.iter_deleted_notes().count();
         if count_deleted > 0 {
             //todo: what about saving deleted notes too? Maybe with their TTLs
-            tracing::warn!("completely drop some deleted notes on exit: {count_deleted}");
+            tracing::warn!("completely drop deleted notes on exit: {count_deleted}");
         }
     }
 
@@ -975,6 +980,14 @@ impl ServiceModel {
         if let Some(sticky_window) = self.sticky_windows.remove(&id) {
             self.notes.delete_note(sticky_window.get_note_id());
             window::close(id)
+        } else {
+            Task::none()
+        }
+    }
+
+    fn on_copy_note(&mut self, note_id: Uuid) -> Task<cosmic::Action<Message>> {
+        if let Ok(note) = self.notes.try_get_note(&note_id) {
+            cosmic::iced::clipboard::write(note.get_content().trim().to_string())
         } else {
             Task::none()
         }

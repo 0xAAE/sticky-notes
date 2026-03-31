@@ -165,6 +165,7 @@ impl StickyWindow {
                         );
                     }
                 }
+                // lock / unlock
                 toolbar = toolbar.push(
                     if is_locked {
                         icons.unlock()
@@ -176,6 +177,18 @@ impl StickyWindow {
                     .on_press(Message::NoteLock(window_id, !is_locked))
                     .width(Length::Shrink),
                 );
+                // copy if content is not empty
+                if !note.get_content().is_empty() {
+                    toolbar = toolbar.push(
+                        icons
+                            .copy()
+                            .apply(widget::button::icon)
+                            .icon_size(self.icon_size)
+                            .on_press(Message::NoteCopy(self.note_id))
+                            .width(Length::Shrink),
+                    );
+                }
+                // more options if it is unlocked
                 if !is_locked {
                     toolbar = toolbar.push(
                         icons

@@ -17,3 +17,4 @@ debian/*
 local/
 .local/
 .cspell/
+.VSCodeCounter/
