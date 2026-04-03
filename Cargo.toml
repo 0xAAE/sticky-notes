@@ -1,6 +1,6 @@
 [package]
 name = "sticky-notes"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 license = "MPL-2.0"
 description = "Implementation of sticky notes for Cosmic desktop environment"
@@ -13,7 +13,7 @@ default = ["cosmic"]
 embed-icons = []
 # integral feature to build for running in Cosmic DE
 cosmic = [ "wayland" ]
-# integral feature to build for Wayland fo rrunning run NOT in Cosmic DE (service only, no applet)
+# integral feature to build for Wayland fo running run NOT in Cosmic DE (service only, no applet)
 wayland = [ "libcosmic/applet", "libcosmic/wgpu", "libcosmic/wayland" ]
 # integral feature to build for X11 Server (service only, no applet)
 x11 = []
