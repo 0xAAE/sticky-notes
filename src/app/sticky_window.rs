@@ -261,19 +261,20 @@ impl StickyWindow {
                 widget::row()
             };
 
-            let tmp = cosmic::theme::active();
-            let theme = tmp.cosmic();
+            let theme_accessor = cosmic::theme::active();
+            let theme = theme_accessor.cosmic();
+            let font = cosmic_font(style.get_font().style);
             let markdown_style = widget::markdown::Style {
-                font: cosmic_font(style.get_font().style),
-                code_block_font: cosmic_font(style.get_font().style),
-                inline_code_color: theme.success_text_color().into(),
-                inline_code_font: cosmic_font(style.get_font().style),
+                font,
+                code_block_font: cosmic::font::mono(),
+                inline_code_font: font,
+                inline_code_color: theme.text_button.selected_text.into(),
                 inline_code_highlight: widget::markdown::Highlight {
-                    background: theme.background.base.into(),
+                    background: theme.primary.base.into(),
                     border: cosmic::iced::border::rounded(0.1),
                 },
                 inline_code_padding: cosmic::iced::Padding::ZERO,
-                link_color: theme.warning_color().into(),
+                link_color: theme.link_button.selected_text.into(),
             };
             let settings =
                 widget::markdown::Settings::with_text_size(style.get_font().size, markdown_style);
