@@ -399,6 +399,7 @@ impl cosmic::Application for ServiceModel {
                     id,
                     StickyWindow::new(
                         note_id,
+                        &self.notes,
                         self.config.toolbar_icon_size,
                         self.applet_connected.is_false().then_some(popup_variant()),
                     ),

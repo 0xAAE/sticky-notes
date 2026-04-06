@@ -33,6 +33,8 @@ pub struct StickyWindow {
     popup_menu: Option<PopupVariant>,
     // optionally display a toolbar in view mode (in edit mode the toolbar is always visible)
     view_toolbar: bool,
+    // markdown
+    markdown: Vec<widget::markdown::Item>,
 }
 
 struct EditContext {
@@ -41,7 +43,17 @@ struct EditContext {
 }
 
 impl StickyWindow {
-    pub fn new(note_id: Uuid, icon_size: u16, popup_menu: Option<PopupVariant>) -> Self {
+    pub fn new(
+        note_id: Uuid,
+        notes: &NotesCollection,
+        icon_size: u16,
+        popup_menu: Option<PopupVariant>,
+    ) -> Self {
+        let markdown = if let Ok(note) = notes.try_get_note(&note_id) {
+            widget::markdown::parse(note.get_content()).collect()
+        } else {
+            Vec::new()
+        };
         Self {
             note_id,
             edit_context: None,
@@ -49,6 +61,7 @@ impl StickyWindow {
             icon_size,
             popup_menu,
             view_toolbar: false,
+            markdown,
         }
     }
 
@@ -74,7 +87,11 @@ impl StickyWindow {
     pub fn finish_edit(&mut self) -> Result<String, StickyWindowError> {
         self.edit_context
             .take()
-            .map(|context| context.content.text())
+            .map(|context| {
+                let s = context.content.text();
+                self.markdown = widget::markdown::parse(&s).collect();
+                s
+            })
             .ok_or(StickyWindowError::EditingIsOff)
     }
 
@@ -244,13 +261,33 @@ impl StickyWindow {
                 widget::row()
             };
 
-            let note_content = widget::column::with_capacity(2)
+            let tmp = cosmic::theme::active();
+            let theme = tmp.cosmic();
+            let markdown_style = widget::markdown::Style {
+                font: cosmic_font(style.get_font().style),
+                code_block_font: cosmic_font(style.get_font().style),
+                inline_code_color: theme.success_text_color().into(),
+                inline_code_font: cosmic_font(style.get_font().style),
+                inline_code_highlight: widget::markdown::Highlight {
+                    background: theme.background.base.into(),
+                    border: cosmic::iced::border::rounded(0.1),
+                },
+                inline_code_padding: cosmic::iced::Padding::ZERO,
+                link_color: theme.warning_color().into(),
+            };
+            let settings =
+                widget::markdown::Settings::with_text_size(style.get_font().size, markdown_style);
+            let note_content = widget::column::with_capacity::<Message>(2)
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .push(
-                    widget::text(note.get_content())
-                        .font(cosmic_font(style.get_font().style))
-                        .size(style.get_font().size),
+                    widget::markdown(
+                        &self.markdown, //items,
+                        settings,
+                    )
+                    .map(Message::OpenUrl), // widget::text(note.get_content())
+                                            //     .font(cosmic_font(style.get_font().style))
+                                            //     .size(style.get_font().size),
                 );
 
             with_background(
