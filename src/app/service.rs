@@ -399,6 +399,7 @@ impl cosmic::Application for ServiceModel {
                     id,
                     StickyWindow::new(
                         note_id,
+                        &self.notes,
                         self.config.toolbar_icon_size,
                         self.applet_connected.is_false().then_some(popup_variant()),
                     ),
@@ -987,7 +988,15 @@ impl ServiceModel {
 
     fn on_copy_note(&mut self, note_id: Uuid) -> Task<cosmic::Action<Message>> {
         if let Ok(note) = self.notes.try_get_note(&note_id) {
-            cosmic::iced::clipboard::write(note.get_content().trim().to_string())
+            cosmic::iced::clipboard::write(
+                note.get_content()
+                    .trim()
+                    .trim_start_matches('`')
+                    .trim_start_matches(|c: char| c.is_ascii_control())
+                    .trim_end_matches('`')
+                    .trim_end_matches(|c: char| c.is_ascii_control())
+                    .to_string(),
+            )
         } else {
             Task::none()
         }

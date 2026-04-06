@@ -1,6 +1,6 @@
 [package]
 name = "sticky-notes"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 license = "MPL-2.0"
 description = "Implementation of sticky notes for Cosmic desktop environment"
@@ -69,7 +69,7 @@ features = [
     # It is not recommended for applets: GPU-accelerated rendering, is controlled by package feature: 
     #"wgpu",
     # Uncomment if markdown is required
-    #"markdown"
+    "markdown"
 ]
 
 # Uncomment to test a locally-cloned libcosmic
