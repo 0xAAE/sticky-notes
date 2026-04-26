@@ -199,17 +199,14 @@ impl cosmic::Application for ServiceModel {
             tracing::debug!("launch testing autosave notes every {pause} msec");
             startup_tasks.push(
                 // iced_futures::stream::channel will create and read mpsc channel under the hood:
-                Task::stream(cosmic::iced_futures::stream::channel(
-                    1,
-                    async move |mut tx| {
-                        loop {
-                            tokio::time::sleep(Duration::from_millis(pause)).await;
-                            if let Err(e) = tx.try_send(Message::AutosaveTimeout.into()) {
-                                tracing::warn!("failed sending autosave signal: {e}");
-                            }
+                Task::stream(cosmic::iced::stream::channel(1, async move |mut tx| {
+                    loop {
+                        tokio::time::sleep(Duration::from_millis(pause)).await;
+                        if let Err(e) = tx.try_send(Message::AutosaveTimeout.into()) {
+                            tracing::warn!("failed sending autosave signal: {e}");
                         }
-                    },
-                )),
+                    }
+                })),
             );
         }
 
@@ -1090,16 +1087,15 @@ impl ServiceModel {
         tracing::trace!("window: {event:?}");
         match event {
             // WindowEvent::Resized(size) => is handled by on_window_resize() override
-            WindowEvent::Moved(point) => {
-                if self.sticky_windows.contains_key(&id) {
-                    match self.try_get_note_mut(id) {
-                        Ok(note) => {
-                            note.set_position(to_usize(point.x), to_usize(point.y));
-                        }
-                        Err(e) => tracing::error!("failed to update sticky window position: {e}"),
+            WindowEvent::Moved(point) if self.sticky_windows.contains_key(&id) => {
+                match self.try_get_note_mut(id) {
+                    Ok(note) => {
+                        note.set_position(to_usize(point.x), to_usize(point.y));
                     }
+                    Err(e) => tracing::error!("failed to update sticky window position: {e}"),
                 }
             }
+
             // do nothing with CloseRequested at the moment:
             // WindowEvent::CloseRequested => {}
             WindowEvent::Closed => {

@@ -258,7 +258,7 @@ impl StickyWindow {
                 );
                 toolbar
             } else {
-                widget::row()
+                widget::row(None)
             };
 
             let theme_accessor = cosmic::theme::active();
@@ -278,7 +278,7 @@ impl StickyWindow {
             };
             let settings =
                 widget::markdown::Settings::with_text_size(style.get_font().size, markdown_style);
-            let note_content = widget::column::with_capacity::<Message>(2)
+            let note_content = widget::column::with_capacity(2)
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .push(
