@@ -12,6 +12,8 @@
   <launchable type="desktop-id">com.github.aae.sticky_notes.desktop</launchable>
   <provides>
     <id>com.github.aae.sticky_notes</id>
+    <id>com.system76.CosmicApplication</id>
+    <id>com.system76.CosmicApplet</id>
     <binaries>
       <binary>notes-applet</binary>
       <binary>notes-service</binary>
