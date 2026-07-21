@@ -270,7 +270,7 @@ impl StickyWindow {
                 inline_code_font: font,
                 inline_code_color: theme.text_button.selected_text.into(),
                 inline_code_highlight: widget::markdown::Highlight {
-                    background: theme.primary.base.into(),
+                    background: theme.background(true).base.into(),
                     border: cosmic::iced::border::rounded(0.1),
                 },
                 inline_code_padding: cosmic::iced::Padding::ZERO,
