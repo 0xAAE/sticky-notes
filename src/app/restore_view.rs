@@ -1,4 +1,7 @@
-use super::{service::Message, utils::with_background};
+use super::{
+    service::Message,
+    utils::{is_light_theme, with_background},
+};
 use crate::{
     fl,
     icons::IconSet,
@@ -66,7 +69,7 @@ fn build_note_list_item<'a>(
         )
         .into();
     if let Some(note_bg) = bgcolor {
-        with_background(child, note_bg)
+        with_background(child, note_bg, is_light_theme())
     } else {
         child
     }

@@ -1,6 +1,6 @@
 use super::{
     service::Message,
-    utils::{cosmic_font, with_background},
+    utils::{cosmic_font, is_light_theme, with_background},
 };
 use crate::{
     fl,
@@ -117,6 +117,7 @@ impl EditStyleDialog {
             .control(with_background(
                 self.build_edit_style_control(),
                 self.bgcolor,
+                is_light_theme(),
             ))
             .primary_action(
                 widget::button::text(fl!("edit-style-ok")).on_press(Message::EditStyleUpdate),

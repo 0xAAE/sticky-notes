@@ -1,6 +1,6 @@
 use super::{
     service::Message,
-    utils::{cosmic_font, with_background},
+    utils::{cosmic_font, is_light_theme, with_background},
 };
 use crate::{
     fl,
@@ -76,5 +76,5 @@ fn build_style_list_item<'a>(
                 .width(Length::Shrink),
         )
         .into();
-    with_background(child, style.get_background_color())
+    with_background(child, style.get_background_color(), is_light_theme())
 }

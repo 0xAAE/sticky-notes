@@ -1,18 +1,18 @@
 use super::{
     PopupVariant, get_popup_item_by_index,
     service::Message,
-    utils::{cosmic_font, with_background},
+    utils::{cosmic_font, is_light_theme, with_background},
 };
 use crate::{
     fl,
     icons::IconSet,
     notes::{NoteStyle, NotesCollection},
 };
-use cosmic::prelude::*;
 use cosmic::{
     iced::{Color, Length, window::Id},
     widget::{self, text_editor::Action},
 };
+use cosmic::{prelude::*, widget::markdown::Item};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -155,6 +155,7 @@ impl StickyWindow {
                     .push(note_content)
                     .into(),
                 bgcolor,
+                is_light_theme(),
             )
         } else if let Ok(note) = notes.try_get_note(&self.note_id)
             && let Ok(style) = notes.try_get_style(&note.style())
@@ -286,9 +287,7 @@ impl StickyWindow {
                         &self.markdown, //items,
                         settings,
                     )
-                    .map(Message::OpenUrl), // widget::text(note.get_content())
-                                            //     .font(cosmic_font(style.get_font().style))
-                                            //     .size(style.get_font().size),
+                    .map(Message::OpenUrl),
                 );
 
             with_background(
@@ -297,10 +296,19 @@ impl StickyWindow {
                     .push(note_content)
                     .into(),
                 style.get_background_color(),
+                is_light_theme() && !self.contains_code_block(),
             )
         } else {
             // build problem view
             widget::text("problem-text").into()
         }
+    }
+
+    // markdown widget has a strange feature: it unconditionally displays any code block on dark background;
+    // so, the possible solution is to draw a sticky note with code block as the dark theme is active
+    fn contains_code_block(&self) -> bool {
+        self.markdown
+            .iter()
+            .any(|item| matches!(item, Item::CodeBlock { .. }))
     }
 }
