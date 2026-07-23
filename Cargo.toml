@@ -70,7 +70,7 @@ features = [
     # It is not recommended for applets: GPU-accelerated rendering, is controlled by package feature: 
     #"wgpu",
     # Uncomment if markdown is required
-    "markdown"
+    "markdown", "highlighter"
 ]
 
 # Uncomment to test a locally-cloned libcosmic
