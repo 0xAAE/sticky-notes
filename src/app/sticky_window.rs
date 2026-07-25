@@ -12,7 +12,12 @@ use cosmic::{
     iced::{Color, Length, window::Id},
     widget::{self, text_editor::Action},
 };
-use cosmic::{prelude::*, widget::markdown::Item};
+use cosmic::{
+    prelude::*,
+    widget::markdown::{
+        Highlight, Item, Settings, Style as MarkdownStyle, Text, Uri, Viewer as MarkdownViewer,
+    },
+};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -34,7 +39,7 @@ pub struct StickyWindow {
     // optionally display a toolbar in view mode (in edit mode the toolbar is always visible)
     view_toolbar: bool,
     // markdown
-    markdown: Vec<widget::markdown::Item>,
+    markdown: Vec<Item>,
 }
 
 struct EditContext {
@@ -262,34 +267,35 @@ impl StickyWindow {
                 widget::row(None)
             };
 
+            // build markdown view element
             let theme_accessor = cosmic::theme::active();
             let theme = theme_accessor.cosmic();
             let font = cosmic_font(style.get_font().style);
-            let markdown_style = widget::markdown::Style {
+            let markdown_style = MarkdownStyle {
                 font,
                 code_block_font: cosmic::font::mono(),
                 inline_code_font: font,
                 inline_code_color: theme.text_button.selected_text.into(),
-                inline_code_highlight: widget::markdown::Highlight {
+                inline_code_highlight: Highlight {
                     background: theme.background(true).base.into(),
                     border: cosmic::iced::border::rounded(0.1),
                 },
                 inline_code_padding: cosmic::iced::Padding::ZERO,
                 link_color: theme.link_button.selected_text.into(),
             };
-            let settings =
-                widget::markdown::Settings::with_text_size(style.get_font().size, markdown_style);
+            let settings = Settings::with_text_size(style.get_font().size, markdown_style);
             let note_content = widget::column::with_capacity(2)
                 .width(Length::Fill)
                 .height(Length::Fill)
+                //.push(colored_markdown_container);
                 .push(
-                    widget::markdown(
+                    widget::markdown::view_with(
                         &self.markdown, //items,
                         settings,
+                        &CodeBlockViewer(style),
                     )
                     .map(Message::OpenUrl),
                 );
-
             with_background(
                 widget::column::with_capacity(2)
                     .push(note_toolbar)
@@ -310,5 +316,53 @@ impl StickyWindow {
         self.markdown
             .iter()
             .any(|item| matches!(item, Item::CodeBlock { .. }))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CodeBlockViewer<'a>(&'a NoteStyle);
+
+impl<'a> MarkdownViewer<'a, Uri, Theme, Renderer> for CodeBlockViewer<'a> {
+    fn on_link_click(url: Uri) -> Uri {
+        url
+    }
+
+    /// Displays a code block.
+    fn code_block(
+        &self,
+        settings: Settings,
+        language: Option<&'_ str>,
+        code: &'a str,
+        lines: &'a [Text],
+    ) -> cosmic::iced::core::Element<'a, Uri, Theme, Renderer> {
+        let _language = language;
+        let _lines = lines;
+
+        let font = self.0.get_font();
+
+        // 1. Получаем стандартный или ваш текущий виджет для блока кода
+        // (Обычно это текстовый блок или прокручиваемый контейнер)
+        let code_widget = widget::text(code)
+            .size(font.size)
+            .font(cosmic::font::mono());
+
+        // 2. Оборачиваем его в контейнер и жестко задаем БЕЛЫЙ цвет текста на ЧЕРНОМ фоне
+        widget::container(
+            widget::scrollable(code_widget).direction(
+                cosmic::iced::widget::scrollable::Direction::Horizontal(
+                    cosmic::iced::widget::scrollable::Scrollbar::default()
+                        .width(settings.code_size / 2)
+                        .scroller_width(settings.code_size / 2),
+                ),
+            ),
+        )
+        .style(|_theme| widget::container::Style {
+            text_color: Some(cosmic::iced::Color::WHITE), // Делаем текст внутри кода белым
+            background: Some(cosmic::iced::Background::Color(cosmic::iced::Color::BLACK)),
+            ..Default::default()
+        })
+        .width(Length::Fill)
+        .padding(settings.code_size / 4)
+        .into() // Конвертируем в Element
     }
 }
