@@ -42,6 +42,7 @@ edit-style-font-size = size
 edit-style-font-sample = Note text example
 edit-style-hex = HEX
 edit-style-rgb = RGB
+edit-style-is-dark = Assume dark
 edit-style-bg = Background
 edit-style-bg-reset = Reset
 edit-style-bg-recent = Recently used colors

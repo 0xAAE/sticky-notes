@@ -76,5 +76,5 @@ fn build_style_list_item<'a>(
                 .width(Length::Shrink),
         )
         .into();
-    with_background(child, style.get_background_color())
+    with_background(child, style.get_background_color(), style.is_light())
 }

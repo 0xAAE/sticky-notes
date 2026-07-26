@@ -4,14 +4,20 @@ use super::{
     utils::{cosmic_font, with_background},
 };
 use crate::{
+    app::utils::{background_color, text_color},
     fl,
     icons::IconSet,
     notes::{NoteStyle, NotesCollection},
 };
-use cosmic::prelude::*;
 use cosmic::{
-    iced::{Color, Length, window::Id},
+    iced::{Length, window::Id},
     widget::{self, text_editor::Action},
+};
+use cosmic::{
+    prelude::*,
+    widget::markdown::{
+        Highlight, Item, Settings, Style as MarkdownStyle, Text, Uri, Viewer as MarkdownViewer,
+    },
 };
 use thiserror::Error;
 use uuid::Uuid;
@@ -34,7 +40,7 @@ pub struct StickyWindow {
     // optionally display a toolbar in view mode (in edit mode the toolbar is always visible)
     view_toolbar: bool,
     // markdown
-    markdown: Vec<widget::markdown::Item>,
+    markdown: Vec<Item>,
 }
 
 struct EditContext {
@@ -128,34 +134,35 @@ impl StickyWindow {
         icons: &IconSet,
     ) -> Element<'a, Message> {
         if let Some(edit_context) = &self.edit_context {
-            let bgcolor = notes
-                .try_get_note_style(self.get_note_id())
-                .map_or(Color::WHITE, NoteStyle::get_background_color);
+            if let Ok(style) = notes.try_get_note_style(self.get_note_id()) {
+                let note_toolbar = widget::row::with_capacity(1).push(
+                    icons
+                        .checked()
+                        .apply(widget::button::icon)
+                        .icon_size(self.icon_size)
+                        .on_press(Message::NoteEdit(window_id, false))
+                        .width(Length::Shrink),
+                );
 
-            let note_toolbar = widget::row::with_capacity(1).push(
-                icons
-                    .checked()
-                    .apply(widget::button::icon)
-                    .icon_size(self.icon_size)
-                    .on_press(Message::NoteEdit(window_id, false))
-                    .width(Length::Shrink),
-            );
+                let note_content = widget::container(
+                    widget::text_editor(&edit_context.content)
+                        .on_action(move |act| Message::Edit(window_id, act))
+                        .height(Length::Fill),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill);
 
-            let note_content = widget::container(
-                widget::text_editor(&edit_context.content)
-                    .on_action(move |act| Message::Edit(window_id, act))
-                    .height(Length::Fill),
-            )
-            .width(Length::Fill)
-            .height(Length::Fill);
-
-            with_background(
-                widget::column::with_capacity(2)
-                    .push(note_toolbar)
-                    .push(note_content)
-                    .into(),
-                bgcolor,
-            )
+                with_background(
+                    widget::column::with_capacity(2)
+                        .push(note_toolbar)
+                        .push(note_content)
+                        .into(),
+                    style.get_background_color(),
+                    style.is_light(),
+                )
+            } else {
+                widget::text("problem-text").into()
+            }
         } else if let Ok(note) = notes.try_get_note(&self.note_id)
             && let Ok(style) = notes.try_get_style(&note.style())
         {
@@ -261,46 +268,93 @@ impl StickyWindow {
                 widget::row(None)
             };
 
+            // build markdown view element
             let theme_accessor = cosmic::theme::active();
             let theme = theme_accessor.cosmic();
             let font = cosmic_font(style.get_font().style);
-            let markdown_style = widget::markdown::Style {
+            let markdown_style = MarkdownStyle {
                 font,
                 code_block_font: cosmic::font::mono(),
                 inline_code_font: font,
                 inline_code_color: theme.text_button.selected_text.into(),
-                inline_code_highlight: widget::markdown::Highlight {
+                inline_code_highlight: Highlight {
                     background: theme.background(true).base.into(),
                     border: cosmic::iced::border::rounded(0.1),
                 },
                 inline_code_padding: cosmic::iced::Padding::ZERO,
                 link_color: theme.link_button.selected_text.into(),
             };
-            let settings =
-                widget::markdown::Settings::with_text_size(style.get_font().size, markdown_style);
+            let settings = Settings::with_text_size(style.get_font().size, markdown_style);
             let note_content = widget::column::with_capacity(2)
                 .width(Length::Fill)
                 .height(Length::Fill)
+                //.push(colored_markdown_container);
                 .push(
-                    widget::markdown(
+                    widget::markdown::view_with(
                         &self.markdown, //items,
                         settings,
+                        &CodeBlockViewer(style),
                     )
-                    .map(Message::OpenUrl), // widget::text(note.get_content())
-                                            //     .font(cosmic_font(style.get_font().style))
-                                            //     .size(style.get_font().size),
+                    .map(Message::OpenUrl),
                 );
-
             with_background(
                 widget::column::with_capacity(2)
                     .push(note_toolbar)
                     .push(note_content)
                     .into(),
                 style.get_background_color(),
+                style.is_light(),
             )
         } else {
             // build problem view
             widget::text("problem-text").into()
         }
+    }
+}
+
+// CodeBlockViewer is to customize code block depending on particular NoteStyle
+#[derive(Debug, Clone, Copy)]
+struct CodeBlockViewer<'a>(&'a NoteStyle);
+
+impl<'a> MarkdownViewer<'a, Uri, Theme, Renderer> for CodeBlockViewer<'a> {
+    fn on_link_click(url: Uri) -> Uri {
+        url
+    }
+
+    /// Displays a code block.
+    fn code_block(
+        &self,
+        settings: Settings,
+        _language: Option<&'_ str>,
+        code: &'a str,
+        _lines: &'a [Text],
+    ) -> cosmic::iced::core::Element<'a, Uri, Theme, Renderer> {
+        let font = self.0.get_font();
+
+        // code block widget
+        let code_widget = widget::text(code)
+            .size(font.size)
+            .font(cosmic::font::mono());
+
+        // container for code block to apply text and background colors
+        widget::container(
+            widget::scrollable(code_widget).direction(
+                cosmic::iced::widget::scrollable::Direction::Horizontal(
+                    cosmic::iced::widget::scrollable::Scrollbar::default()
+                        .width(settings.code_size / 2)
+                        .scroller_width(settings.code_size / 2),
+                ),
+            ),
+        )
+        .style(|_theme| widget::container::Style {
+            text_color: Some(text_color(self.0.is_light()).into()), // Делаем текст внутри кода белым
+            background: Some(cosmic::iced::Background::Color(
+                background_color(self.0.is_light()).into(),
+            )),
+            ..Default::default()
+        })
+        .width(Length::Fill)
+        .padding(settings.code_size / 4)
+        .into() // Конвертируем в Element
     }
 }

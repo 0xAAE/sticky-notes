@@ -25,6 +25,7 @@ pub struct EditStyleDialog {
     color_picker_model: widget::ColorPickerModel,
     avail_fonts: Vec<String>,
     font_size_text: String,
+    is_dark: bool,
     is_new: bool,
 }
 
@@ -45,6 +46,7 @@ impl EditStyleDialog {
             ),
             avail_fonts: get_avail_fonts().iter().map(ToString::to_string).collect(),
             font_size_text,
+            is_dark: !style.is_light(),
             is_new,
         }
     }
@@ -66,6 +68,10 @@ impl EditStyleDialog {
         self.font_size_text = font_size.to_string();
     }
 
+    pub fn update_is_dark(&mut self, is_dark: bool) {
+        self.is_dark = is_dark;
+    }
+
     pub fn get_id(&self) -> Uuid {
         self.style_id
     }
@@ -80,6 +86,10 @@ impl EditStyleDialog {
 
     pub fn get_background_color(&self) -> Color {
         self.bgcolor
+    }
+
+    pub fn get_is_dark(&self) -> bool {
+        self.is_dark
     }
 
     pub fn on_color_picker_update(
@@ -117,6 +127,7 @@ impl EditStyleDialog {
             .control(with_background(
                 self.build_edit_style_control(),
                 self.bgcolor,
+                !self.is_dark,
             ))
             .primary_action(
                 widget::button::text(fl!("edit-style-ok")).on_press(Message::EditStyleUpdate),
@@ -128,7 +139,7 @@ impl EditStyleDialog {
     }
 
     fn build_edit_style_control(&self) -> Element<'_, Message> {
-        widget::column::with_capacity(4)
+        widget::column::with_capacity(5)
             .spacing(cosmic::theme::spacing().space_m)
             .push(
                 widget::row::with_capacity(1).push(
@@ -177,6 +188,12 @@ impl EditStyleDialog {
                     .push(widget::text(fl!("edit-style-bg")).align_y(Alignment::Center))
                     .push(self.build_color_picker())
                     .height(Length::Fill),
+            )
+            .push(
+                widget::row::with_capacity(2)
+                    .spacing(cosmic::theme::spacing().space_m)
+                    .push(widget::checkbox(self.is_dark).on_toggle(Message::StyleIsDarkChanged))
+                    .push(widget::text(fl!("edit-style-is-dark")).align_y(Alignment::Center)),
             )
             .into()
     }

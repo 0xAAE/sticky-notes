@@ -23,17 +23,34 @@ pub const fn to_f32(v: usize) -> f32 {
 }
 
 #[inline]
-pub const fn text_color() -> Srgba {
-    Srgba::new(0.08, 0.08, 0.08, 1.0)
+pub const fn text_color(for_light_theme: bool) -> Srgba {
+    if for_light_theme {
+        Srgba::new(0.08, 0.08, 0.08, 1.0)
+    } else {
+        Srgba::new(0.75, 0.75, 0.75, 1.0)
+    }
 }
 
-pub fn with_background(child: Element<'_, Message>, bgcolor: Color) -> Element<'_, Message> {
+#[inline]
+pub const fn background_color(for_light_theme: bool) -> Srgba {
+    if for_light_theme {
+        Srgba::new(0.9, 0.9, 0.9, 1.0)
+    } else {
+        Srgba::new(0.08, 0.08, 0.08, 1.0)
+    }
+}
+
+pub fn with_background(
+    child: Element<'_, Message>,
+    bgcolor: Color,
+    is_light: bool,
+) -> Element<'_, Message> {
     widget::container(child)
         .class(cosmic::style::Container::custom(move |theme: &Theme| {
             let cosmic = theme.cosmic();
             iced::widget::container::Style {
-                icon_color: Some(Color::from(text_color())),
-                text_color: Some(Color::from(text_color())),
+                icon_color: Some(Color::from(text_color(is_light))),
+                text_color: Some(Color::from(text_color(is_light))),
                 background: Some(iced::Background::Color(bgcolor)),
                 border: iced::Border {
                     radius: cosmic.corner_radii.radius_s.into(),

@@ -93,6 +93,7 @@ pub enum Message {
     ColorUpdate(widget::color_picker::ColorPickerUpdate), // update currently edited style color
     FontStyleUpdate(FontStyle),                           // update currently edited style font
     FontSizeUpdate(u16),                                  // update currently edited style font size
+    StyleIsDarkChanged(bool), // update currently edited style "darkness"
     // Open URL
     OpenUrl(String),
     // Test autosave timeout
@@ -529,6 +530,7 @@ impl cosmic::Application for ServiceModel {
                         dialog.get_name(),
                         dialog.get_font(),
                         dialog.get_background_color(),
+                        dialog.get_is_dark(),
                     );
                     return window::close(window_id);
                 }
@@ -567,6 +569,12 @@ impl cosmic::Application for ServiceModel {
             Message::FontSizeUpdate(font_size) => {
                 if let Some((_window_id, dialog)) = &mut self.edit_style {
                     dialog.update_font_size(font_size);
+                }
+            }
+
+            Message::StyleIsDarkChanged(is_dark) => {
+                if let Some((_window_id, dialog)) = &mut self.edit_style {
+                    dialog.update_is_dark(is_dark);
                 }
             }
 
@@ -1027,12 +1035,20 @@ impl ServiceModel {
         }
     }
 
-    fn on_style_updated(&mut self, style_id: Uuid, name: &str, font: Font, bgcolor: Color) {
+    fn on_style_updated(
+        &mut self,
+        style_id: Uuid,
+        name: &str,
+        font: Font,
+        bgcolor: Color,
+        is_dark: bool,
+    ) {
         match self.notes.try_get_style_mut(&style_id) {
             Ok(style) => {
                 style.set_name(name);
                 style.set_font(font);
                 style.set_background_color(bgcolor);
+                style.set_is_dark(is_dark);
             }
             Err(e) => tracing::error!("failed to update style: {e}"),
         }
