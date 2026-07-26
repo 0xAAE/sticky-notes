@@ -23,11 +23,20 @@ pub const fn to_f32(v: usize) -> f32 {
 }
 
 #[inline]
-pub const fn text_color(is_light: bool) -> Srgba {
-    if is_light {
+pub const fn text_color(for_light_theme: bool) -> Srgba {
+    if for_light_theme {
         Srgba::new(0.08, 0.08, 0.08, 1.0)
     } else {
         Srgba::new(0.75, 0.75, 0.75, 1.0)
+    }
+}
+
+#[inline]
+pub const fn background_color(for_light_theme: bool) -> Srgba {
+    if for_light_theme {
+        Srgba::new(0.9, 0.9, 0.9, 1.0)
+    } else {
+        Srgba::new(0.08, 0.08, 0.08, 1.0)
     }
 }
 
@@ -63,9 +72,4 @@ pub fn cosmic_font(font_style: FontStyle) -> Font {
         FontStyle::Bold => font::bold(),
         FontStyle::Monospace => font::mono(),
     }
-}
-
-#[inline]
-pub fn is_light_theme() -> bool {
-    !cosmic::theme::active().cosmic().is_dark
 }

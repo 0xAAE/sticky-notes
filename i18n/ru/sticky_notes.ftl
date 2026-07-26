@@ -42,6 +42,7 @@ edit-style-font-size = размер
 edit-style-font-sample = Пример текста заметки
 edit-style-hex = HEX
 edit-style-rgb = RGB
+edit-style-is-dark = Считать темным
 edit-style-bg = Фон заметки
 edit-style-bg-reset = Сброс
 edit-style-bg-recent = Недавно использованные цвета

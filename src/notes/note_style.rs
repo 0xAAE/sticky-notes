@@ -45,21 +45,14 @@ impl Default for Font {
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq)]
 pub struct NoteStyle {
     name: String,
-    //#[serde(rename(deserialize = "font_name"), deserialize_with = "font_from_str")]
     font: Font,
     #[serde(deserialize_with = "color_from_str", serialize_with = "color_to_str")]
     bgcolor: Color,
+    #[serde(default)]
+    is_dark: bool,
     #[serde(skip)]
     is_dirty: bool,
 }
-
-// fn font_from_str<'de, D>(deserializer: D) -> Result<Font, D::Error>
-// where
-//     D: Deserializer<'de>,
-// {
-//     let text: &str = Deserialize::deserialize(deserializer)?;
-//     Ok(indicator_stickynotes::parse_font(text))
-// }
 
 fn color_from_str<'de, D>(deserializer: D) -> Result<Color, D::Error>
 where
@@ -87,6 +80,7 @@ impl Default for NoteStyle {
             name: DEF_NOTE_STYLE_NAME.to_string(),
             font: Font::default(),
             bgcolor: Color::WHITE,
+            is_dark: false,
             is_dirty: false,
         }
     }
@@ -99,6 +93,7 @@ impl NoteStyle {
             name,
             font,
             bgcolor,
+            is_dark: false,
             is_dirty: false,
         }
     }
@@ -111,6 +106,11 @@ impl NoteStyle {
     #[must_use]
     pub fn get_font(&self) -> &Font {
         &self.font
+    }
+
+    #[must_use]
+    pub fn is_light(&self) -> bool {
+        !self.is_dark
     }
 
     #[must_use]
@@ -138,6 +138,14 @@ impl NoteStyle {
         if self.bgcolor != color {
             tracing::debug!("(*) unsaved style: color changed");
             self.bgcolor = color;
+            self.is_dirty = true;
+        }
+    }
+
+    pub fn set_is_dark(&mut self, is_dark: bool) {
+        if self.is_dark != is_dark {
+            tracing::debug!("(*) unsaved style: is_dark changed");
+            self.is_dark = is_dark;
             self.is_dirty = true;
         }
     }

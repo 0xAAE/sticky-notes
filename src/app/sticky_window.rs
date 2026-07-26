@@ -1,15 +1,16 @@
 use super::{
     PopupVariant, get_popup_item_by_index,
     service::Message,
-    utils::{cosmic_font, is_light_theme, with_background},
+    utils::{cosmic_font, with_background},
 };
 use crate::{
+    app::utils::{background_color, text_color},
     fl,
     icons::IconSet,
     notes::{NoteStyle, NotesCollection},
 };
 use cosmic::{
-    iced::{Color, Length, window::Id},
+    iced::{Length, window::Id},
     widget::{self, text_editor::Action},
 };
 use cosmic::{
@@ -133,35 +134,35 @@ impl StickyWindow {
         icons: &IconSet,
     ) -> Element<'a, Message> {
         if let Some(edit_context) = &self.edit_context {
-            let bgcolor = notes
-                .try_get_note_style(self.get_note_id())
-                .map_or(Color::WHITE, NoteStyle::get_background_color);
+            if let Ok(style) = notes.try_get_note_style(self.get_note_id()) {
+                let note_toolbar = widget::row::with_capacity(1).push(
+                    icons
+                        .checked()
+                        .apply(widget::button::icon)
+                        .icon_size(self.icon_size)
+                        .on_press(Message::NoteEdit(window_id, false))
+                        .width(Length::Shrink),
+                );
 
-            let note_toolbar = widget::row::with_capacity(1).push(
-                icons
-                    .checked()
-                    .apply(widget::button::icon)
-                    .icon_size(self.icon_size)
-                    .on_press(Message::NoteEdit(window_id, false))
-                    .width(Length::Shrink),
-            );
+                let note_content = widget::container(
+                    widget::text_editor(&edit_context.content)
+                        .on_action(move |act| Message::Edit(window_id, act))
+                        .height(Length::Fill),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill);
 
-            let note_content = widget::container(
-                widget::text_editor(&edit_context.content)
-                    .on_action(move |act| Message::Edit(window_id, act))
-                    .height(Length::Fill),
-            )
-            .width(Length::Fill)
-            .height(Length::Fill);
-
-            with_background(
-                widget::column::with_capacity(2)
-                    .push(note_toolbar)
-                    .push(note_content)
-                    .into(),
-                bgcolor,
-                is_light_theme(),
-            )
+                with_background(
+                    widget::column::with_capacity(2)
+                        .push(note_toolbar)
+                        .push(note_content)
+                        .into(),
+                    style.get_background_color(),
+                    style.is_light(),
+                )
+            } else {
+                widget::text("problem-text").into()
+            }
         } else if let Ok(note) = notes.try_get_note(&self.note_id)
             && let Ok(style) = notes.try_get_style(&note.style())
         {
@@ -302,23 +303,16 @@ impl StickyWindow {
                     .push(note_content)
                     .into(),
                 style.get_background_color(),
-                is_light_theme() && !self.contains_code_block(),
+                style.is_light(),
             )
         } else {
             // build problem view
             widget::text("problem-text").into()
         }
     }
-
-    // markdown widget has a strange feature: it unconditionally displays any code block on dark background;
-    // so, the possible solution is to draw a sticky note with code block as the dark theme is active
-    fn contains_code_block(&self) -> bool {
-        self.markdown
-            .iter()
-            .any(|item| matches!(item, Item::CodeBlock { .. }))
-    }
 }
 
+// CodeBlockViewer is to customize code block depending on particular NoteStyle
 #[derive(Debug, Clone, Copy)]
 struct CodeBlockViewer<'a>(&'a NoteStyle);
 
@@ -331,22 +325,18 @@ impl<'a> MarkdownViewer<'a, Uri, Theme, Renderer> for CodeBlockViewer<'a> {
     fn code_block(
         &self,
         settings: Settings,
-        language: Option<&'_ str>,
+        _language: Option<&'_ str>,
         code: &'a str,
-        lines: &'a [Text],
+        _lines: &'a [Text],
     ) -> cosmic::iced::core::Element<'a, Uri, Theme, Renderer> {
-        let _language = language;
-        let _lines = lines;
-
         let font = self.0.get_font();
 
-        // 1. Получаем стандартный или ваш текущий виджет для блока кода
-        // (Обычно это текстовый блок или прокручиваемый контейнер)
+        // code block widget
         let code_widget = widget::text(code)
             .size(font.size)
             .font(cosmic::font::mono());
 
-        // 2. Оборачиваем его в контейнер и жестко задаем БЕЛЫЙ цвет текста на ЧЕРНОМ фоне
+        // container for code block to apply text and background colors
         widget::container(
             widget::scrollable(code_widget).direction(
                 cosmic::iced::widget::scrollable::Direction::Horizontal(
@@ -357,8 +347,10 @@ impl<'a> MarkdownViewer<'a, Uri, Theme, Renderer> for CodeBlockViewer<'a> {
             ),
         )
         .style(|_theme| widget::container::Style {
-            text_color: Some(cosmic::iced::Color::WHITE), // Делаем текст внутри кода белым
-            background: Some(cosmic::iced::Background::Color(cosmic::iced::Color::BLACK)),
+            text_color: Some(text_color(self.0.is_light()).into()), // Делаем текст внутри кода белым
+            background: Some(cosmic::iced::Background::Color(
+                background_color(self.0.is_light()).into(),
+            )),
             ..Default::default()
         })
         .width(Length::Fill)
