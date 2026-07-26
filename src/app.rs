@@ -32,6 +32,8 @@ pub enum Command {
     SaveNotes,
     ImportNotes,
     ExportNotes,
+    BackupDB,
+    RestoreDB,
     ShowAllNotes,
     HideAllNotes,
     LockAll,
@@ -53,6 +55,8 @@ const LOAD: &str = "LOAD";
 const SAVE: &str = "SAVE";
 const IMPORT: &str = "IMPORT";
 const EXPORT: &str = "EXPORT";
+const BACKUP_DB: &str = "BACKUP_DB";
+const RESTORE_DB: &str = "RESTORE_DB";
 const SHOW: &str = "SHOW";
 const HIDE: &str = "HIDE";
 const LOCK: &str = "LOCK";
@@ -74,6 +78,8 @@ impl std::fmt::Display for Command {
                 Command::SaveNotes => SAVE,
                 Command::ImportNotes => IMPORT,
                 Command::ExportNotes => EXPORT,
+                Command::BackupDB => BACKUP_DB,
+                Command::RestoreDB => RESTORE_DB,
                 Command::ShowAllNotes => SHOW,
                 Command::HideAllNotes => HIDE,
                 Command::LockAll => LOCK,
@@ -97,6 +103,8 @@ impl FromStr for Command {
             SAVE => Ok(Self::SaveNotes),
             IMPORT => Ok(Self::ImportNotes),
             EXPORT => Ok(Self::ExportNotes),
+            BACKUP_DB => Ok(Self::BackupDB),
+            RESTORE_DB => Ok(Self::RestoreDB),
             SHOW => Ok(Self::ShowAllNotes),
             HIDE => Ok(Self::HideAllNotes),
             LOCK => Ok(Self::LockAll),
@@ -141,6 +149,7 @@ mod popup_menu {
         widget,
     };
 
+    #[allow(clippy::too_many_lines)]
     pub fn build_main_popup_view<F, P, M>(
         core: &cosmic::Core,
         to_message: F,
@@ -179,6 +188,19 @@ mod popup_menu {
             import_export = import_export.push(
                 cosmic_applet::menu_button(widget::text::body(fl!("export")))
                     .on_press(to_message(Command::ExportNotes)),
+            );
+        }
+
+        if is_enabled(Command::BackupDB) {
+            import_export = import_export.push(
+                cosmic_applet::menu_button(widget::text::body(fl!("backup-db")))
+                    .on_press(to_message(Command::BackupDB)),
+            );
+        }
+        if is_enabled(Command::RestoreDB) {
+            import_export = import_export.push(
+                cosmic_applet::menu_button(widget::text::body(fl!("restore-db")))
+                    .on_press(to_message(Command::RestoreDB)),
             );
         }
 
@@ -264,6 +286,8 @@ mod dropdown_menu {
             fl!("save"),
             fl!("import"),
             fl!("export"),
+            fl!("backup-db"),
+            fl!("restore-db"),
             // fl!("show-all"), // don't use without applet
             // fl!("hide-all"), // don't use without applet
             fl!("lock-all"),
@@ -298,11 +322,13 @@ const fn get_popup_item_by_index(index: usize) -> Command {
         1 => Command::SaveNotes,
         2 => Command::ImportNotes,
         3 => Command::ExportNotes,
-        4 => Command::LockAll,
-        5 => Command::RestoreNotes,
-        6 => Command::OpenSettings,
-        7 => Command::OpenAbout,
-        8 => Command::Quit,
+        4 => Command::BackupDB,
+        5 => Command::RestoreDB,
+        6 => Command::LockAll,
+        7 => Command::RestoreNotes,
+        8 => Command::OpenSettings,
+        9 => Command::OpenAbout,
+        10 => Command::Quit,
         _ => Command::Ignored, // dummy command
     }
 }

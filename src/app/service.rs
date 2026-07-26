@@ -269,6 +269,8 @@ impl cosmic::Application for ServiceModel {
             super::build_main_popup_view(self.core(), Message::Signal, |cmd| match cmd {
                 // some commands are senseless when working through the sticky window menu
                 Command::HideAllNotes | Command::ShowAllNotes => false,
+                Command::BackupDB => !self.notes.is_default_collection(),
+                Command::RestoreDB => !self.config.backup.is_empty(),
                 _ => true,
             })
         } else {
@@ -376,6 +378,7 @@ impl cosmic::Application for ServiceModel {
 
             Message::LoadNotesCompleted(imported) => {
                 self.notes = imported;
+                tracing::info!("loading notes succeeded");
                 return cosmic::task::batch(self.spawn_sticky_windows());
             }
 
@@ -727,6 +730,16 @@ impl ServiceModel {
                 return cosmic::task::future(Self::export_notes(export_file, notes));
             }
 
+            Command::BackupDB => {
+                if let Err(e) = self.backup_notes() {
+                    tracing::error!("backup notes failed: {e}");
+                } else {
+                    tracing::info!("backup notes succeeded");
+                }
+            }
+
+            Command::RestoreDB => return cosmic::task::message(self.restore_notes_from_backup()),
+
             Command::ShowAllNotes => {
                 return self.on_change_notes_visibility(true);
             }
@@ -845,6 +858,30 @@ impl ServiceModel {
         tx.commit()?;
         self.notes.commit_changes();
         Ok(())
+    }
+
+    fn backup_notes(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let global_config =
+            cosmic_config::Config::new(<Self as cosmic::Application>::APP_ID, Config::VERSION)?;
+        let tx = global_config.transaction();
+        self.config.backup = self.config.notes.clone();
+        tx.set("backup", self.config.backup.clone())?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn restore_notes_from_backup(&mut self) -> Message {
+        if !self.config.backup.is_empty() {
+            let mut loaded = Self::load_notes_or_default(&self.config.backup);
+            if loaded.is_default_collection() {
+                Message::LoadNotesFailed("backup copy does not contain notes".to_string())
+            } else {
+                loaded.set_dirty();
+                Message::LoadNotesCompleted(loaded)
+            }
+        } else {
+            Message::LoadNotesFailed("backup was not created before".to_string())
+        }
     }
 
     async fn import_notes(configured_import_file: String) -> Message {

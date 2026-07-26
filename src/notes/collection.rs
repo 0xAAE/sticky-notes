@@ -203,6 +203,10 @@ impl NotesCollection {
         tracing::debug!("saved collection: no changes for now");
     }
 
+    pub fn set_dirty(&mut self) {
+        self.is_dirty = true;
+    }
+
     // operations with notes
 
     #[must_use]
