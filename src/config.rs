@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
+use crate::app::to_f32;
 use cosmic::{
     cosmic_config::{self, CosmicConfigEntry, cosmic_config_derive::CosmicConfigEntry},
     iced::Size,
 };
-
-use crate::app::to_f32;
 
 const DEF_DATA_FILE: &str = ".config/indicator-stickynotes";
 const DEF_SERVICE_BIN: &str = "/usr/bin/notes-service";
@@ -15,6 +14,7 @@ const ICON_SIZE: u16 = 16;
 pub struct Config {
     pub import_file: String,
     pub notes: String,
+    pub backup: String,
     pub service_bin: String,
     pub restore_notes_width: usize,
     pub restore_notes_height: usize,
@@ -41,6 +41,7 @@ impl Default for Config {
                 },
             ),
             notes: String::new(),
+            backup: String::new(),
             service_bin: DEF_SERVICE_BIN.to_string(),
             restore_notes_width: 480,
             restore_notes_height: 400,
