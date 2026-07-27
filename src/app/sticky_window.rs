@@ -10,14 +10,12 @@ use crate::{
     notes::{NoteStyle, NotesCollection},
 };
 use cosmic::{
-    iced::{Length, window::Id},
-    widget::{self, text_editor::Action},
-};
-use cosmic::{
+    iced::{Length, widget as iced_widget, window::Id},
     prelude::*,
     widget::markdown::{
         Highlight, Item, Settings, Style as MarkdownStyle, Text, Uri, Viewer as MarkdownViewer,
     },
+    widget::{self, text_editor::Action},
 };
 use thiserror::Error;
 use uuid::Uuid;
@@ -263,9 +261,16 @@ impl StickyWindow {
                         .on_press(Message::NoteNew)
                         .width(Length::Shrink),
                 );
-                toolbar
+                widget::container(toolbar).style(|_theme| widget::container::Style {
+                    text_color: Some(text_color(style.is_light()).into()), // Делаем текст внутри кода белым
+                    background: Some(cosmic::iced::Background::Color(
+                        background_color(style.is_light()).into(),
+                    )),
+                    ..Default::default()
+                })
+                //toolbar
             } else {
-                widget::row(None)
+                widget::container(widget::row(None))
             };
 
             // build markdown view element
@@ -297,11 +302,10 @@ impl StickyWindow {
                     )
                     .map(Message::OpenUrl),
                 );
+            let children: Vec<Element<'a, Message>> =
+                vec![note_content.into(), note_toolbar.into()];
             with_background(
-                widget::column::with_capacity(2)
-                    .push(note_toolbar)
-                    .push(note_content)
-                    .into(),
+                iced_widget::stack(children).into(),
                 style.get_background_color(),
                 style.is_light(),
             )
