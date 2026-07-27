@@ -10,14 +10,12 @@ use crate::{
     notes::{NoteStyle, NotesCollection},
 };
 use cosmic::{
-    iced::{Length, window::Id},
-    widget::{self, text_editor::Action},
-};
-use cosmic::{
+    iced::{Border, Length, widget as iced_widget, window::Id},
     prelude::*,
     widget::markdown::{
         Highlight, Item, Settings, Style as MarkdownStyle, Text, Uri, Viewer as MarkdownViewer,
     },
+    widget::{self, text_editor::Action},
 };
 use thiserror::Error;
 use uuid::Uuid;
@@ -263,14 +261,25 @@ impl StickyWindow {
                         .on_press(Message::NoteNew)
                         .width(Length::Shrink),
                 );
-                toolbar
+                widget::container(toolbar).style(move |theme| widget::container::Style {
+                    text_color: Some(text_color(style.is_light()).into()), // Делаем текст внутри кода белым
+                    background: Some(cosmic::iced::Background::Color(
+                        background_color(style.is_light()).into(),
+                    )),
+                    border: Border {
+                        radius: theme.cosmic().corner_radii.radius_s.into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+                //toolbar
             } else {
-                widget::row(None)
+                widget::container(widget::row(None))
             };
 
             // build markdown view element
-            let theme_accessor = cosmic::theme::active();
-            let theme = theme_accessor.cosmic();
+            let active_theme_holder = cosmic::theme::active();
+            let theme = active_theme_holder.cosmic();
             let font = cosmic_font(style.get_font().style);
             let markdown_style = MarkdownStyle {
                 font,
@@ -279,7 +288,7 @@ impl StickyWindow {
                 inline_code_color: theme.text_button.selected_text.into(),
                 inline_code_highlight: Highlight {
                     background: theme.background(true).base.into(),
-                    border: cosmic::iced::border::rounded(0.1),
+                    border: cosmic::iced::border::rounded(theme.corner_radii.radius_xs),
                 },
                 inline_code_padding: cosmic::iced::Padding::ZERO,
                 link_color: theme.link_button.selected_text.into(),
@@ -297,11 +306,10 @@ impl StickyWindow {
                     )
                     .map(Message::OpenUrl),
                 );
+            let children: Vec<Element<'a, Message>> =
+                vec![note_content.into(), note_toolbar.into()];
             with_background(
-                widget::column::with_capacity(2)
-                    .push(note_toolbar)
-                    .push(note_content)
-                    .into(),
+                iced_widget::stack(children).into(),
                 style.get_background_color(),
                 style.is_light(),
             )
@@ -339,18 +347,22 @@ impl<'a> MarkdownViewer<'a, Uri, Theme, Renderer> for CodeBlockViewer<'a> {
         // container for code block to apply text and background colors
         widget::container(
             widget::scrollable(code_widget).direction(
-                cosmic::iced::widget::scrollable::Direction::Horizontal(
-                    cosmic::iced::widget::scrollable::Scrollbar::default()
+                iced_widget::scrollable::Direction::Horizontal(
+                    iced_widget::scrollable::Scrollbar::default()
                         .width(settings.code_size / 2)
                         .scroller_width(settings.code_size / 2),
                 ),
             ),
         )
-        .style(|_theme| widget::container::Style {
+        .style(|theme| widget::container::Style {
             text_color: Some(text_color(self.0.is_light()).into()), // Делаем текст внутри кода белым
             background: Some(cosmic::iced::Background::Color(
                 background_color(self.0.is_light()).into(),
             )),
+            border: Border {
+                radius: theme.cosmic().corner_radii.radius_s.into(),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .width(Length::Fill)
