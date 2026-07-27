@@ -20,7 +20,7 @@ mod sticky_window;
 mod styles_view;
 mod utils;
 
-const APP_ID: &str = "com.github.aae.sticky_notes";
+const APP_ID: &str = "dev.aae.sticky_notes";
 
 /// Messages emitted by the application and its widgets.
 #[derive(Debug, Clone, PartialEq)]
@@ -268,7 +268,7 @@ mod popup_menu {
 
         core.applet
             .popup_container(content)
-            .max_height(500.)
+            .max_height(800.) // with extra space to hold more items
             .max_width(500.)
             .into()
     }

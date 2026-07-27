@@ -8,7 +8,7 @@ applet := 'notes-applet'
 service := 'notes-service'
 
 # The unique ID of the application.
-appid := 'com.github.aae.sticky_notes'
+appid := 'dev.aae.sticky_notes'
 
 # Path to root file system, which defaults to `/`.
 rootdir := ''

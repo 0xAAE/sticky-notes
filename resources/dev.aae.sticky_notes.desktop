@@ -2,7 +2,7 @@
 Name=Sticky Notes
 Comment=Implementation of sticky notes for Cosmic desktop environment
 Type=Application
-Icon=com.github.aae.sticky_notes
+Icon=dev.aae.sticky_notes
 Exec=notes-applet %F
 Terminal=false
 StartupNotify=true

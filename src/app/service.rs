@@ -871,7 +871,9 @@ impl ServiceModel {
     }
 
     fn restore_notes_from_backup(&mut self) -> Message {
-        if !self.config.backup.is_empty() {
+        if self.config.backup.is_empty() {
+            Message::LoadNotesFailed("backup was not created before".to_string())
+        } else {
             let mut loaded = Self::load_notes_or_default(&self.config.backup);
             if loaded.is_default_collection() {
                 Message::LoadNotesFailed("backup copy does not contain notes".to_string())
@@ -879,8 +881,6 @@ impl ServiceModel {
                 loaded.set_dirty();
                 Message::LoadNotesCompleted(loaded)
             }
-        } else {
-            Message::LoadNotesFailed("backup was not created before".to_string())
         }
     }
 
