@@ -1,7 +1,7 @@
 use cosmic::widget::icon::Handle;
 
 const ICON_NOTES: &[u8] =
-    include_bytes!("../resources/icons/hicolor/scalable/apps/com.github.aae.sticky_notes.svg");
+    include_bytes!("../resources/icons/hicolor/scalable/apps/dev.aae.sticky_notes.svg");
 
 // embedded SVG bytes
 #[cfg(feature = "embed-icons")]

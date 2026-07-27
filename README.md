@@ -89,7 +89,7 @@ sudo just install-applet
 
 ## Configuration
 
-The path to configuration is `~/.config/cosmic/com.github.aae/sticky_notes/v1`.
+The path to configuration is `~/.config/cosmic/dev.aae/sticky_notes/v1`.
 
 Each value is stored in a separate file having following names.
 
